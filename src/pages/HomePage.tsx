@@ -1,0 +1,199 @@
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  Animated,
+  useWindowDimensions,
+  TouchableOpacity,
+} from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { colorScheme } from '../constants/colorScheme';
+import HomeScreen from '../screens/HomeScreen';
+import SessionsScreen from '../screens/SessionsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import {
+  ScrollLockProvider,
+  useScrollLock,
+} from '../contexts/ScrollLockContext';
+
+const PAGES = [
+  { key: 'home', title: 'Home', icon: 'home-outline' },
+  { key: 'sessions', title: 'Sessions', icon: 'music-circle-outline' },
+  { key: 'settings', title: 'Settings', icon: 'cog-outline' },
+];
+
+function HomePageContent() {
+  const { width } = useWindowDimensions();
+  const scrollRef = useRef<any>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [navWidth, setNavWidth] = useState(0);
+  const [isSessionDetailOpen, setIsSessionDetailOpen] = useState(false);
+  const { scrollEnabled } = useScrollLock();
+
+  const scrollX = useRef(new Animated.Value(0)).current;
+
+  const innerWidth = navWidth ? navWidth - 36 : 0; // account for left/right padding
+  const tabWidth = innerWidth / PAGES.length;
+  const indicatorWidth = tabWidth * 0.8; // make the indicator longer
+  const indicatorStyle = { width: indicatorWidth };
+
+  const goToIndex = useCallback(
+    (index: number) => {
+      setActiveIndex(index);
+      const ref = scrollRef.current;
+      const scroller = ref?.getNode ? ref.getNode() : ref;
+      scroller?.scrollTo?.({ x: index * width, animated: true });
+    },
+    [width],
+  );
+
+  const onMomentumScrollEnd = useCallback(
+    (event: any) => {
+      const newIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+      setActiveIndex(newIndex);
+    },
+    [width],
+  );
+
+  const showBottomNav = !isSessionDetailOpen;
+
+  return (
+    <View style={styles.container}>
+      <Animated.ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        scrollEnabled={scrollEnabled}
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false },
+        )}
+        scrollEventThrottle={16}
+        style={styles.scroller}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={[styles.page, { width }]}>
+          <HomeScreen onGetStarted={() => goToIndex(1)} />
+        </View>
+        <View style={[styles.page, { width }]}>
+          <SessionsScreen
+            onDetailOpen={() => setIsSessionDetailOpen(true)}
+            onDetailClose={() => setIsSessionDetailOpen(false)}
+          />
+        </View>
+
+        <View style={[styles.page, { width }]}>
+          <SettingsScreen />
+        </View>
+      </Animated.ScrollView>
+
+      {showBottomNav ? (
+        <View
+          style={styles.bottomNav}
+          onLayout={event => setNavWidth(event.nativeEvent.layout.width)}
+        >
+          <Animated.View
+            style={[
+              styles.indicator,
+              indicatorStyle,
+              {
+                transform: [
+                  {
+                    translateX: navWidth
+                      ? scrollX.interpolate({
+                          inputRange: PAGES.map((_, i) => i * width),
+                          outputRange: PAGES.map(
+                            (_, i) =>
+                              18 + // left padding
+                              i * tabWidth +
+                              (tabWidth - indicatorWidth) / 2,
+                          ),
+                          extrapolate: 'clamp',
+                        })
+                      : 0,
+                  },
+                ],
+              },
+            ]}
+          />
+
+          {PAGES.map((page, index) => (
+            <TouchableOpacity
+              key={page.key}
+              style={styles.tab}
+              onPress={() => goToIndex(index)}
+            >
+              <MaterialCommunityIcons
+                name={page.icon}
+                size={26}
+                color={
+                  activeIndex === index
+                    ? colorScheme.accent
+                    : colorScheme.subText
+                }
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colorScheme.background,
+  },
+  scroller: {
+    flex: 1,
+  },
+  page: {
+    flex: 1,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 24,
+    alignSelf: 'center',
+    width: '90%',
+    maxWidth: 300,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 40,
+    backgroundColor: colorScheme.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.15)',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    alignItems: 'center',
+  },
+  indicator: {
+    position: 'absolute',
+    height: 44,
+    borderRadius: 20,
+    backgroundColor: 'rgba(141, 141, 141, 0.12)',
+    top: 8,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  scrollContent: {
+    paddingBottom: 116,
+  },
+});
+
+export default function HomePage() {
+  return (
+    <ScrollLockProvider>
+      <HomePageContent />
+    </ScrollLockProvider>
+  );
+}
