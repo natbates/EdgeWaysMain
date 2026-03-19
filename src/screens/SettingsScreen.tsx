@@ -7,11 +7,13 @@ import {
   Text,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+// Removed useSafeAreaInsets, using SafeAreaView instead
 import { CustomHeader, CustomText } from '@components';
 import { colorScheme } from '../constants/colorScheme';
 import { loadSettings, saveSettings, Settings } from '../utils/settings';
 import CustomSlider from '../components/ui/CustomSlider';
-import { useScrollLock } from '../contexts/ScrollLockContext';
+// Removed useScrollLock, not needed
 import { settingsConfig } from '../config/settingsConfig';
 
 const HELP_TEXTS = [
@@ -25,7 +27,6 @@ export default function SettingsScreen() {
   const [showHelp, setShowHelp] = useState(false);
   const [helpText, setHelpText] = useState('');
   const [settings, setSettings] = useState<Settings | null>(null);
-  const { setScrollEnabled } = useScrollLock();
 
   const openHelp = () => {
     const idx = Math.floor(Math.random() * HELP_TEXTS.length);
@@ -50,72 +51,77 @@ export default function SettingsScreen() {
         rightIcon="help-circle-outline"
         onRightPress={openHelp}
       />
-      <View style={styles.body}>
-        {settings &&
-          settingsConfig.map(setting => {
-            const currentValue = settings[setting.key] as number | undefined;
-            const value = currentValue ?? setting.min;
-            const formattedValue = setting.format
-              ? setting.format(value)
-              : String(value);
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{
+            paddingBottom: 160,
+            paddingHorizontal: 16,
+            paddingTop: 16,
+          }}
+        >
+          {settings &&
+            settingsConfig.map(setting => {
+              const currentValue = settings[setting.key] as number | undefined;
+              const value = currentValue ?? setting.min;
+              const formattedValue = setting.format
+                ? setting.format(value)
+                : String(value);
 
-            return (
-              <View key={setting.key}>
-                <View style={styles.settingRow}>
-                  <CustomText style={styles.settingLabel}>
-                    {setting.label}
-                  </CustomText>
-                  <CustomText style={styles.settingValue}>
-                    {formattedValue}
+              return (
+                <View key={setting.key}>
+                  <View style={styles.settingRow}>
+                    <CustomText style={styles.settingLabel}>
+                      {setting.label}
+                    </CustomText>
+                    <CustomText style={styles.settingValue}>
+                      {formattedValue}
+                    </CustomText>
+                  </View>
+
+                  <CustomSlider
+                    value={value}
+                    minimumValue={setting.min}
+                    maximumValue={setting.max}
+                    step={setting.step}
+                    onValueChange={newValue =>
+                      updateSetting(setting.key, newValue)
+                    }
+                    style={styles.slider}
+                  />
+
+                  <CustomText style={styles.description}>
+                    {setting.description}
                   </CustomText>
                 </View>
-
-                <CustomSlider
-                  value={value}
-                  minimumValue={setting.min}
-                  maximumValue={setting.max}
-                  step={setting.step}
-                  onValueChange={newValue =>
-                    updateSetting(setting.key, newValue)
-                  }
-                  onSlidingStart={() => setScrollEnabled(false)}
-                  onSlidingComplete={() => setScrollEnabled(true)}
-                  style={styles.slider}
-                />
-
-                <CustomText style={styles.description}>
-                  {setting.description}
-                </CustomText>
-              </View>
-            );
-          })}
-      </View>
-
-      <Modal
-        visible={showHelp}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowHelp(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ScrollView>
-              <Text style={styles.modalTitle}>Help</Text>
-              <Text style={styles.modalText}>{helpText}</Text>
-              <Text style={styles.modalText}>
-                This screen will get additional settings soon — including voice
-                calibration and model tweaks.
-              </Text>
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.modalClose}
-              onPress={() => setShowHelp(false)}
-            >
-              <Text style={styles.modalCloseText}>Close</Text>
-            </TouchableOpacity>
+              );
+            })}
+        </ScrollView>
+        <Modal
+          visible={showHelp}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowHelp(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ScrollView>
+                <Text style={styles.modalTitle}>Help</Text>
+                <Text style={styles.modalText}>{helpText}</Text>
+                <Text style={styles.modalText}>
+                  This screen will get additional settings soon — including
+                  voice calibration and model tweaks.
+                </Text>
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.modalClose}
+                onPress={() => setShowHelp(false)}
+              >
+                <Text style={styles.modalCloseText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      </SafeAreaView>
     </View>
   );
 }

@@ -1,4 +1,5 @@
-import type { Session } from '../types';
+import type { Session, VoiceProfile, TimelineEntry } from '../types';
+import { computeProfileSpeakingPercentages } from '../utils/sessionUtils';
 
 // Set to true to enable mock sessions in the Sessions screen.
 // This file is meant to be easy to tweak for development/demo purposes.
@@ -34,7 +35,7 @@ export type MockSessionConfig = {
 };
 
 export function createMockSession(config: MockSessionConfig): Session {
-  const voiceProfiles = Array.from(
+  const voiceProfiles: VoiceProfile[] = Array.from(
     { length: config.profileCount },
     (_, idx) => ({
       name: `Profile ${idx + 1}`,
@@ -42,13 +43,28 @@ export function createMockSession(config: MockSessionConfig): Session {
     }),
   );
 
-  const timeline = (config.timeline ?? []).map(entry => ({
-    profileName:
+  const timeline: TimelineEntry[] = (config.timeline ?? []).map(entry => {
+    const profileName =
       voiceProfiles[entry.profileIndex]?.name ??
-      `Profile ${entry.profileIndex}`,
-    startTimeSec: entry.startTimeSec,
-    durationSec: entry.durationSec,
-  }));
+      `Profile ${entry.profileIndex}`;
+    return {
+      profileName,
+      startTimeSec: entry.startTimeSec,
+      durationSec: entry.durationSec,
+    };
+  });
+
+  const profileNames = voiceProfiles.map(p => p.name);
+  const speakingPercentages = computeProfileSpeakingPercentages(
+    timeline,
+    profileNames,
+  );
+
+  // Attach the computed speaking percent to each demo profile so that UI can
+  // show realistic talking-distribution stats without needing a recording.
+  voiceProfiles.forEach(p => {
+    p.speakingPercentage = speakingPercentages[p.name] ?? 0;
+  });
 
   return {
     id: config.id,

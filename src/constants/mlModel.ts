@@ -17,6 +17,10 @@ export const COSINE_MIN_CONFIDENCE = 0.75;
 // Lowering this value makes the VAD more sensitive to quieter speech.
 export const VAD_RMS_THRESHOLD = 0.001; // energy threshold for VAD (tune per mic/environment)
 
+// Maximum allowed zero-crossing rate for speech segments.
+// Higher values allow more noisy/unvoiced content to be treated as speech.
+export const VAD_ZCR_THRESHOLD = 0.25; // tune per mic/environment
+
 // Training (voice profile) settings
 export const TRAINING_RECORD_DURATION_SEC = 10; // seconds of audio to record for a profile
 

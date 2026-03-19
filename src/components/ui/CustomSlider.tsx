@@ -1,12 +1,6 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  PanResponder,
-  LayoutChangeEvent,
-  Animated,
-  GestureResponderEvent,
-} from 'react-native';
+import React from 'react';
+import Slider from '@react-native-community/slider';
+import { View, StyleSheet } from 'react-native';
 import { colorScheme } from '../../constants/colorScheme';
 
 type Props = {
@@ -34,95 +28,20 @@ export default function CustomSlider({
   thumbSize = 24,
   style,
 }: Props) {
-  const trackWidth = useRef(0);
-  const animatedValue = useRef(new Animated.Value(0)).current;
-
-  const ratio = useMemo(() => {
-    const clamped = Math.min(Math.max(value, minimumValue), maximumValue);
-    return (clamped - minimumValue) / (maximumValue - minimumValue);
-  }, [value, minimumValue, maximumValue]);
-
-  useEffect(() => {
-    Animated.timing(animatedValue, {
-      toValue: ratio,
-      duration: 100,
-      useNativeDriver: false,
-    }).start();
-  }, [ratio, animatedValue]);
-
-  const toValue = (gestureX: number) => {
-    const w = trackWidth.current;
-    if (!w) return value;
-    const raw = gestureX / w;
-    const clamped = Math.min(1, Math.max(0, raw));
-    const stepped =
-      Math.round((clamped * (maximumValue - minimumValue)) / step) * step;
-    return minimumValue + stepped;
-  };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-      // allow the responder to be taken by another slider/button when the user taps elsewhere
-      onPanResponderTerminationRequest: () => true,
-      onShouldBlockNativeResponder: () => true,
-      onPanResponderGrant: (evt: GestureResponderEvent) => {
-        onSlidingStart?.();
-        const next = toValue(evt.nativeEvent.locationX);
-        onValueChange(next);
-      },
-      onPanResponderMove: (evt: GestureResponderEvent) => {
-        const next = toValue(evt.nativeEvent.locationX);
-        onValueChange(next);
-      },
-      onPanResponderRelease: (evt: GestureResponderEvent) => {
-        const next = toValue(evt.nativeEvent.locationX);
-        onValueChange(next);
-        onSlidingComplete?.();
-      },
-      onPanResponderTerminate: (evt: GestureResponderEvent) => {
-        const next = toValue(evt.nativeEvent.locationX);
-        onValueChange(next);
-        onSlidingComplete?.();
-      },
-    }),
-  ).current;
-
-  const thumbPosition = animatedValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, trackWidth.current],
-    extrapolate: 'clamp',
-  });
-
   return (
-    <View
-      style={[styles.container, style]}
-      onLayout={(event: LayoutChangeEvent) => {
-        trackWidth.current = event.nativeEvent.layout.width - thumbSize;
-      }}
-      {...panResponder.panHandlers}
-    >
-      <View style={[styles.track, { height: trackHeight }]} />
-      <Animated.View
-        style={[
-          styles.thumb,
-          {
-            width: thumbSize,
-            height: thumbSize,
-            borderRadius: thumbSize / 2,
-            transform: [
-              {
-                translateX: Animated.add(
-                  thumbPosition,
-                  new Animated.Value(thumbSize / -2),
-                ),
-              },
-            ],
-          },
-        ]}
+    <View style={[styles.container, style]}>
+      <Slider
+        value={value}
+        minimumValue={minimumValue}
+        maximumValue={maximumValue}
+        step={step}
+        onValueChange={onValueChange}
+        onSlidingStart={onSlidingStart}
+        onSlidingComplete={onSlidingComplete}
+        minimumTrackTintColor={colorScheme.accent}
+        maximumTrackTintColor={colorScheme.border}
+        thumbTintColor={colorScheme.surface}
+        style={{ width: '100%', height: trackHeight + thumbSize }}
       />
     </View>
   );
@@ -132,16 +51,5 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     justifyContent: 'center',
-  },
-  track: {
-    backgroundColor: colorScheme.border,
-    borderRadius: 999,
-  },
-  thumb: {
-    position: 'absolute',
-    backgroundColor: colorScheme.accent,
-    borderWidth: 2,
-    borderColor: colorScheme.surface,
-    elevation: 2,
   },
 });

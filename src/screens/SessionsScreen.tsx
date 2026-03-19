@@ -169,6 +169,8 @@ export default function SessionsScreen({
         ListEmptyComponent={
           <CustomText style={styles.empty}>No sessions yet</CustomText>
         }
+        ListFooterComponent={<View style={styles.listFooter} />}
+        contentContainerStyle={styles.listContent}
       />
 
       <Modal
@@ -257,6 +259,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colorScheme.subText,
     marginTop: 24,
+  },
+  listContent: {
+    paddingBottom: 140,
+  },
+  listFooter: {
+    height: 140,
   },
   modalOverlay: {
     flex: 1,

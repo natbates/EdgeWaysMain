@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AudioRecord from 'react-native-audio-record';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -11,13 +12,21 @@ import { profileColors } from '../constants/profileColors';
 import { runModelOnMFCC } from '../utils/mlModelUtils';
 import { extractMFCC } from '../utils/mfccUtils';
 import { scoreVoiceProfiles } from '../utils/voiceProfiles';
-import { createVad, isSpeech, computeZcr } from '../utils/vad';
+import { computeProfileSpeakingPercentages } from '../utils/sessionUtils';
+import {
+  createVad,
+  isSpeech,
+  computeZcr,
+  mapRmsSliderToThreshold,
+  mapZcrSliderToThreshold,
+} from '../utils/vad';
 import { computeRms, decodePcm16Base64ToFloat32 } from '../utils/audioUtils';
 import {
   SAMPLE_RATE,
   WINDOW_LENGTH_SAMPLES,
   WINDOW_DURATION_SEC,
   VAD_RMS_THRESHOLD,
+  VAD_ZCR_THRESHOLD,
 } from '../constants/mlModel';
 
 import type { Session } from '../types';
@@ -37,6 +46,7 @@ export default function SessionPage({
   onUpdate,
   onExit,
 }: SessionPageProps) {
+  const insets = useSafeAreaInsets();
   const [output, setOutput] = useState<number[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,11 +76,14 @@ export default function SessionPage({
   const [speakingTime, setSpeakingTime] = useState<Record<string, number>>({});
   const [totalSpeakingTime, setTotalSpeakingTime] = useState(0);
 
-  const vadRef = useRef(createVad({ smoothingFrames: 3 }));
-  const vadNativeRef = useRef<any | null>(null);
-  const lastVoiceDetectedAtRef = useRef<number>(0);
-  const [nativeVadReady, setNativeVadReady] = useState(false);
-  const [nativeSpeechDetected, setNativeSpeechDetected] = useState(false);
+  const [settings, setSettings] = useState<
+    import('../utils/settings').Settings | null
+  >(null);
+
+  // Default to no smoothing until settings are loaded.
+  const vadRef = useRef(createVad({ smoothingFrames: 0 }));
+  const lastAudioChunkAtRef = useRef<number>(0);
+  const chunkCountRef = useRef<number>(0);
 
   const sanitizeSession = (s: Partial<Session>): Session => ({
     id: s.id || '',
@@ -80,65 +93,6 @@ export default function SessionPage({
     voiceProfiles: s.voiceProfiles ?? [],
     timeline: s.timeline ?? [],
   });
-
-  useEffect(() => {
-    // Initialize native VAD (Android/iOS) if available.
-    // We use this only for detecting speech vs silence, not for capturing audio samples.
-    let RNVad: any = null;
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      RNVad = require('react-native-vad');
-    } catch (err) {
-      console.warn('react-native-vad not available; falling back to JS VAD', err);
-      setNativeVadReady(false);
-      return;
-    }
-
-    const createInstanceFn = RNVad?.createVADRNBridgeInstance;
-    if (typeof createInstanceFn !== 'function') {
-      console.warn('react-native-vad export missing createVADRNBridgeInstance; falling back to JS VAD');
-      setNativeVadReady(false);
-      return;
-    }
-
-    const instanceId = `session-vad-${
-      session.id || Math.random().toString(16)
-    }`;
-
-    createInstanceFn(instanceId, false)
-      .then(async (instance: any) => {
-        vadNativeRef.current = instance;
-        setNativeVadReady(true);
-
-        // 0.1 is a conservative threshold; 30ms window is common for VAD.
-        await instance.createInstance(0.1, 30);
-
-        instance.onVADDetectionEvent(() => {
-          lastVoiceDetectedAtRef.current = Date.now();
-          setNativeSpeechDetected(true);
-          // keep it true for a short time even if events are sparse.
-          setTimeout(() => {
-            if (Date.now() - lastVoiceDetectedAtRef.current > 500) {
-              setNativeSpeechDetected(false);
-            }
-          }, 500);
-        });
-      })
-      .catch((err: unknown) => {
-        console.warn('Native VAD init failed (falling back to JS VAD):', err);
-        setNativeVadReady(false);
-      });
-
-    return () => {
-      if (vadNativeRef.current) {
-        vadNativeRef.current.stopVADDetection?.();
-        vadNativeRef.current.destroyInstance?.();
-        vadNativeRef.current.removeListeners?.();
-        vadNativeRef.current = null;
-      }
-    };
-  }, [session.id]);
 
   const [currentSession, setCurrentSession] = useState<Session>(
     sanitizeSession(session),
@@ -169,26 +123,100 @@ export default function SessionPage({
     writeIndex: number;
     filled: boolean;
     samplesWritten: number;
+    sampleRate: number;
+    windowLengthSamples: number;
   }>({
     buffer: new Float32Array(WINDOW_LENGTH_SAMPLES),
     writeIndex: 0,
     filled: false,
     samplesWritten: 0,
+    sampleRate: SAMPLE_RATE,
+    windowLengthSamples: WINDOW_LENGTH_SAMPLES,
   });
   const timerRef = useRef<any>(null);
+
+  const getWindowLengthForRate = (sampleRate: number) =>
+    Math.max(256, Math.round(sampleRate * WINDOW_DURATION_SEC));
+
+  const updateWindowLength = (sampleRate: number) => {
+    const state = audioBufferRef.current;
+    const newWindowLength = getWindowLengthForRate(sampleRate);
+    const diff = Math.abs(newWindowLength - state.windowLengthSamples);
+    // Only rebuild buffer if window size changes enough to matter (avoid jitter).
+    if (diff >= 32) {
+      state.windowLengthSamples = newWindowLength;
+      state.buffer = new Float32Array(newWindowLength);
+      state.writeIndex = 0;
+      state.samplesWritten = 0;
+      state.filled = false;
+      setDebug(
+        `Adjusted window size to ${newWindowLength} (sampleRate=${sampleRate.toFixed(
+          0,
+        )})`,
+      );
+    }
+  };
 
   const vadStateRef = useRef({
     active: false,
   });
 
+  const updateSpeakingPercentages = (session: Session) => {
+    const profileNames = session.voiceProfiles.map(p => p.name);
+
+    const hasTimeline = (session.timeline?.length ?? 0) > 0;
+    const fromTimeline = computeProfileSpeakingPercentages(
+      session.timeline ?? [],
+      profileNames,
+    );
+
+    if (hasTimeline) {
+      setSpeakingTime(fromTimeline);
+      setTotalSpeakingTime(1);
+      return;
+    }
+
+    const fromProfile = session.voiceProfiles.reduce((acc, p) => {
+      acc[p.name] = p.speakingPercentage ?? 0;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const total = Object.values(fromProfile).reduce((sum, v) => sum + v, 0);
+    setSpeakingTime(fromProfile);
+    setTotalSpeakingTime(total || 1);
+  };
+
   useEffect(() => {
     setCurrentSession(sanitizeSession(session));
     setRecordTime(formatTime(session.recordedTimeSec ?? 0));
+    updateSpeakingPercentages(session);
   }, [session]);
+
+  useEffect(() => {
+    import('../utils/settings')
+      .then(({ loadSettings }) => loadSettings())
+      .then(settings => {
+        setSettings(settings);
+      })
+      .catch(() => {
+        // If settings fail to load, keep the default VAD configuration.
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!settings) return;
+
+    vadRef.current = createVad({
+      smoothingFrames: settings.vadSmoothTicks,
+      rmsThreshold: mapRmsSliderToThreshold(settings.vadRmsThreshold),
+      zcrThreshold: mapZcrSliderToThreshold(settings.vadZcrThreshold),
+    });
+  }, [settings]);
 
   const persistSession = (updated: Partial<Session>) => {
     const normalized = sanitizeSession(updated);
     setCurrentSession(normalized);
+    updateSpeakingPercentages(normalized);
     onUpdate(normalized);
   };
 
@@ -236,7 +264,30 @@ export default function SessionPage({
       try {
         const float32 = decodePcm16Base64ToFloat32(data);
         const rms = computeRms(float32);
-        console.log('[VAD] rms', rms);
+        const now = Date.now();
+        const deltaMs = now - lastAudioChunkAtRef.current;
+        lastAudioChunkAtRef.current = now;
+        chunkCountRef.current += 1;
+
+        // Estimate effective sample rate from incoming chunk size + timing.
+        // This helps when the recorder returns 8kHz even though we request 16kHz.
+        const state = audioBufferRef.current;
+        if (deltaMs > 0) {
+          const observedSampleRate = (float32.length * 1000) / deltaMs;
+          // Smooth the estimate a bit to avoid jumpiness.
+          state.sampleRate = state.sampleRate * 0.85 + observedSampleRate * 0.15;
+          updateWindowLength(state.sampleRate);
+        }
+
+        // Debug visibility for chunk size and buffer progress
+        console.log(
+          '[VAD] chunk',
+          chunkCountRef.current,
+          'len',
+          float32.length,
+          'rms',
+          rms,
+        );
 
         const state = audioBufferRef.current;
         const buf = state.buffer;
@@ -246,14 +297,25 @@ export default function SessionPage({
 
         for (let i = 0; i < float32.length; i++) {
           buf[writeIndex] = float32[i];
-          writeIndex = (writeIndex + 1) % WINDOW_LENGTH_SAMPLES;
+          writeIndex = (writeIndex + 1) % state.windowLengthSamples;
         }
 
         state.writeIndex = writeIndex;
-        state.samplesWritten += float32.length;
-        if (!state.filled && state.samplesWritten >= WINDOW_LENGTH_SAMPLES) {
+        state.samplesWritten = Math.min(
+          state.samplesWritten + float32.length,
+          state.windowLengthSamples,
+        );
+        if (!state.filled && state.samplesWritten >= state.windowLengthSamples) {
           state.filled = true;
         }
+
+        // Debug buffer progress
+        console.log(
+          '[VAD] buffer',
+          `writeIndex=${state.writeIndex}`,
+          `samplesWritten=${state.samplesWritten}`,
+          `filled=${state.filled}`,
+        );
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
         updateRecordedTime(elapsed);
@@ -267,20 +329,27 @@ export default function SessionPage({
     AudioRecord.start();
     setIsRecording(true);
 
-    if (nativeVadReady && vadNativeRef.current) {
-        vadNativeRef.current.startVADDetection?.().catch((err: unknown) => {
-      });
-    }
-
     /* MODEL LOOP */
 
     timerRef.current = setInterval(async () => {
       setMfccTick(tick => tick + 1);
       setMfccLastTime(new Date().toLocaleTimeString());
       const state = audioBufferRef.current;
+      const msSinceLastChunk = Date.now() - lastAudioChunkAtRef.current;
+
+      // If no audio arrived for a while, reset buffer to avoid being stuck just below fill threshold.
+      if (msSinceLastChunk > 1000) {
+        state.writeIndex = 0;
+        state.samplesWritten = 0;
+        state.filled = false;
+        setDebug(
+          `No audio for ${msSinceLastChunk}ms — resetting buffer (writeIndex=${state.writeIndex})`,
+        );
+      }
+
       if (!state.filled) {
         setDebug(
-          `Waiting for audio... buffer length: ${state.writeIndex} / ${WINDOW_LENGTH_SAMPLES}`,
+          `Waiting for audio... written ${state.samplesWritten} / ${state.windowLengthSamples} (last chunk ${msSinceLastChunk}ms ago)`,
         );
         return;
       }
@@ -296,37 +365,60 @@ export default function SessionPage({
       const zcr = computeZcr(out);
       const rms = computeRms(out);
 
-      const speechFromJs = vadRef.current.isSpeech(out);
-      const speech = nativeVadReady ? nativeSpeechDetected : speechFromJs;
+      const vadRmsSlider = settings?.vadRmsThreshold ?? 5;
+      const vadZcrSlider = settings?.vadZcrThreshold ?? 5;
+      const vadRmsThreshold = mapRmsSliderToThreshold(vadRmsSlider);
+      const vadZcrThreshold = mapZcrSliderToThreshold(vadZcrSlider);
+      const passRms = rms >= vadRmsThreshold;
+      const passZcr = zcr < vadZcrThreshold;
+
+      const speech = vadRef.current.isSpeech(out);
+
+      const vadDebug = vadRef.current.getDebugState?.();
+      const avgRms = vadDebug?.rmsHistory
+        ? vadDebug.rmsHistory.reduce((acc, v) => acc + v, 0) /
+          vadDebug.rmsHistory.length
+        : rms;
+      const avgZcr = vadDebug?.zcrHistory
+        ? vadDebug.zcrHistory.reduce((acc, v) => acc + v, 0) /
+          vadDebug.zcrHistory.length
+        : zcr;
 
       console.log('[VAD]', {
         rms: rms.toFixed(5),
+        avgRms: avgRms.toFixed(5),
         zcr: zcr.toFixed(4),
-        speechFromJs,
-        speechFromNative: nativeVadReady ? nativeSpeechDetected : null,
+        avgZcr: avgZcr.toFixed(4),
+        passRms,
+        passZcr,
         speech,
       });
 
       if (!speech) {
         setDebug(
-          `VAD: silence (rms=${rms.toFixed(5)} zcr=${zcr.toFixed(
+          `VAD: silence (rms=${rms.toFixed(5)} avgRms=${avgRms.toFixed(
+            5,
+          )} passRms=${passRms} zcr=${zcr.toFixed(4)} avgZcr=${avgZcr.toFixed(
             4,
-          )} threshold=${VAD_RMS_THRESHOLD})`,
+          )} passZcr=${passZcr} rmsSlider=${vadRmsSlider} rmsThresh=${vadRmsThreshold} zcrSlider=${vadZcrSlider} zcrThresh=${vadZcrThreshold})`,
         );
         setProfilePrediction(null);
         setProfileScores([]);
         return;
       }
 
-      // Track speaking time per profile for the bar graph.
+      // Append a timeline entry for the detected speaker so the UI can
+      // compute percent of speaking time using the timeline helper.
       if (profilePrediction?.name) {
-        setSpeakingTime(prev => {
-          const next = { ...prev };
-          next[profilePrediction.name] =
-            (next[profilePrediction.name] ?? 0) + WINDOW_DURATION_SEC;
-          return next;
+        const entry = {
+          profileName: profilePrediction.name,
+          startTimeSec: currentSession.recordedTimeSec,
+          durationSec: WINDOW_DURATION_SEC,
+        };
+        persistSession({
+          ...currentSession,
+          timeline: [...(currentSession.timeline ?? []), entry],
         });
-        setTotalSpeakingTime(prev => prev + WINDOW_DURATION_SEC);
       }
     }, WINDOW_DURATION_SEC * 1000);
   };
@@ -340,10 +432,6 @@ export default function SessionPage({
 
       setIsRecording(false);
 
-      if (vadNativeRef.current) {
-        vadNativeRef.current.stopVADDetection().catch(() => {});
-      }
-
       setRecordTime(formatTime(currentSession.recordedTimeSec));
 
       if (timerRef.current) {
@@ -351,8 +439,10 @@ export default function SessionPage({
         timerRef.current = null;
       }
 
+      const len = audioBufferRef.current.windowLengthSamples;
       audioBufferRef.current = {
-        buffer: new Float32Array(WINDOW_LENGTH_SAMPLES),
+        ...audioBufferRef.current,
+        buffer: new Float32Array(len),
         writeIndex: 0,
         filled: false,
         samplesWritten: 0,
@@ -362,15 +452,34 @@ export default function SessionPage({
     }
   };
 
+  const handleExit = async () => {
+    if (isRecording) {
+      await onStopRecord();
+    }
+    onExit();
+  };
+
+  useEffect(() => {
+    return () => {
+      // Ensure we stop recording and clear intervals if the component unmounts.
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      // Fire and forget; we just want to stop the native recorder if it's still on.
+      AudioRecord.stop().catch(() => {});
+    };
+  }, []);
+
   /* ---------------------------------- */
   /* UI */
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: insets.bottom + 140 }]}>
       <CustomHeader
         title={currentSession.name}
         leftIcon="chevron-left"
-        onLeftPress={onExit}
+        onLeftPress={handleExit}
         rightIcon="plus"
         onRightPress={() => setIsProfileModalVisible(true)}
       />
@@ -484,12 +593,6 @@ export default function SessionPage({
         {__DEV__ && (
           <>
             <CustomText style={styles.debug}>{debug}</CustomText>
-            <CustomText style={styles.debug}>
-              Native VAD: {nativeVadReady ? 'available' : 'unavailable'}
-              {nativeVadReady
-                ? ` (detected voice: ${nativeSpeechDetected ? 'yes' : 'no'})`
-                : ''}
-            </CustomText>
             {debug.startsWith('Waiting for audio') && (
               <CustomText
                 style={[styles.debug, { color: colorScheme.warning }]}

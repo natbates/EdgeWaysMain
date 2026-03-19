@@ -3,6 +3,11 @@
 export type VoiceProfile = {
   name: string;
   embedding: number[];
+  /**
+   * Optional demo value: percentage of speaking time in a mock session.
+   * This is used for UI/visualization purposes only.
+   */
+  speakingPercentage?: number;
 };
 
 export type TimelineEntry = {

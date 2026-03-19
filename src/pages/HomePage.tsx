@@ -6,15 +6,12 @@ import {
   useWindowDimensions,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colorScheme } from '../constants/colorScheme';
 import HomeScreen from '../screens/HomeScreen';
 import SessionsScreen from '../screens/SessionsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import {
-  ScrollLockProvider,
-  useScrollLock,
-} from '../contexts/ScrollLockContext';
 
 const PAGES = [
   { key: 'home', title: 'Home', icon: 'home-outline' },
@@ -24,15 +21,16 @@ const PAGES = [
 
 function HomePageContent() {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<any>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [navWidth, setNavWidth] = useState(0);
   const [isSessionDetailOpen, setIsSessionDetailOpen] = useState(false);
-  const { scrollEnabled } = useScrollLock();
 
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const innerWidth = navWidth ? navWidth - 36 : 0; // account for left/right padding
+  const bottomNavOffset = insets.bottom + 12; // leave room for home indicator / safe area
   const tabWidth = innerWidth / PAGES.length;
   const indicatorWidth = tabWidth * 0.8; // make the indicator longer
   const indicatorStyle = { width: indicatorWidth };
@@ -63,7 +61,6 @@ function HomePageContent() {
         ref={scrollRef}
         horizontal
         pagingEnabled
-        scrollEnabled={scrollEnabled}
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onMomentumScrollEnd}
         onScroll={Animated.event(
@@ -91,7 +88,7 @@ function HomePageContent() {
 
       {showBottomNav ? (
         <View
-          style={styles.bottomNav}
+          style={[styles.bottomNav, { bottom: bottomNavOffset }]}
           onLayout={event => setNavWidth(event.nativeEvent.layout.width)}
         >
           <Animated.View
@@ -185,15 +182,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  scrollContent: {
-    paddingBottom: 116,
-  },
+  scrollContent: {},
 });
 
 export default function HomePage() {
-  return (
-    <ScrollLockProvider>
-      <HomePageContent />
-    </ScrollLockProvider>
-  );
+  return <HomePageContent />;
 }
