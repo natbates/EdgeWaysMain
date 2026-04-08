@@ -2,14 +2,35 @@ import Accelerate
 import Foundation
 import React
 
+struct MFCCConstants: Codable {
+    let window: [Float]
+    let mel_filterbank: [[Float]]
+}
+
+func loadMFCCConstants() -> MFCCConstants? {
+    guard let url = Bundle.main.url(forResource: "mfcc_constants", withExtension: "json") else {
+        print("Could not find mfcc_constants.json in bundle")
+        return nil
+    }
+    do {
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        return try decoder.decode(MFCCConstants.self, from: data)
+    } catch {
+        print("Failed to load or decode mfcc_constants.json: \(error)")
+        return nil
+    }
+}
+
 @objc(RNMFCC)
 class RNMFCC: NSObject {
-    // Constants (should match your Python config)
-    let FRAME_LENGTH = 400
+    let mfccConstants: MFCCConstants? = loadMFCCConstants()
+    // Constants (must match Python config)
+    let FRAME_LENGTH = 512
     let FRAME_STEP = 160
-    let FFT_LENGTH = 512
-    let NUM_MFCC = 13
-    let MFCC_TIME_STEPS = 49
+    let FFT_LENGTH = 1024
+    let NUM_MFCC = 40
+    let MFCC_TIME_STEPS = 100
     let SAMPLE_RATE = 16000
 
     @objc
@@ -17,133 +38,160 @@ class RNMFCC: NSObject {
         _ waveform: [NSNumber], resolver: @escaping RCTPromiseResolveBlock,
         rejecter: @escaping RCTPromiseRejectBlock
     ) {
-        // Convert input to Float32
-        var waveform = waveform.map { Float32(truncating: $0) }
-        if waveform.count < SAMPLE_RATE {
-            waveform += [Float32](repeating: 0, count: SAMPLE_RATE - waveform.count)
-        } else if waveform.count > SAMPLE_RATE {
-            waveform = Array(waveform[0..<SAMPLE_RATE])
+        // --- 1. Cast and pad/truncate to exactly SAMPLE_RATE samples ---
+        var signal = waveform.map { Float32(truncating: $0) }
+        if signal.count < SAMPLE_RATE {
+            signal += [Float32](repeating: 0, count: SAMPLE_RATE - signal.count)
+        } else if signal.count > SAMPLE_RATE {
+            signal = Array(signal[0..<SAMPLE_RATE])
         }
 
-        // Pre-emphasis
-        let pre_emphasis: Float32 = 0.97
-        var emphasized = [Float32](repeating: 0, count: waveform.count)
-        emphasized[0] = waveform[0]
-        for i in 1..<waveform.count {
-            emphasized[i] = waveform[i] - pre_emphasis * waveform[i - 1]
+        // --- 2. Pre-emphasis ---
+        let preEmphasis: Float32 = 0.97
+        var emphasized = [Float32](repeating: 0, count: signal.count)
+        emphasized[0] = signal[0]
+        for i in 1..<signal.count {
+            emphasized[i] = signal[i] - preEmphasis * signal[i - 1]
         }
 
-        // Framing
-        let num_frames = 1 + Int(ceil(Double(waveform.count - FRAME_LENGTH) / Double(FRAME_STEP)))
-        let pad_length = (num_frames - 1) * FRAME_STEP + FRAME_LENGTH
-        if emphasized.count < pad_length {
-            emphasized += [Float32](repeating: 0, count: pad_length - emphasized.count)
+        // --- 3. Framing ---
+        let numFrames = 1 + Int(ceil(Double(signal.count - FRAME_LENGTH) / Double(FRAME_STEP)))
+        let padLength = (numFrames - 1) * FRAME_STEP + FRAME_LENGTH
+        if emphasized.count < padLength {
+            emphasized += [Float32](repeating: 0, count: padLength - emphasized.count)
         }
         var frames = [[Float32]]()
-        for i in 0..<num_frames {
+        for i in 0..<numFrames {
             let start = i * FRAME_STEP
-            let end = start + FRAME_LENGTH
-            frames.append(Array(emphasized[start..<end]))
+            frames.append(Array(emphasized[start..<(start + FRAME_LENGTH)]))
         }
 
-        // Windowing (Hanning)
-        var window = [Float32](repeating: 0, count: FRAME_LENGTH)
-        vDSP_hann_window(&window, vDSP_Length(FRAME_LENGTH), Int32(vDSP_HANN_NORM))
+        // --- 4. Use precomputed Hann window from JSON ---
+        guard let windowF = mfccConstants?.window, windowF.count == FRAME_LENGTH else {
+            rejecter("MFCC_CONSTANTS_ERROR", "Window not loaded or wrong size", nil)
+            return
+        }
+        let window = windowF.map { Float32($0) }
         for i in 0..<frames.count {
             vDSP_vmul(frames[i], 1, window, 1, &frames[i], 1, vDSP_Length(FRAME_LENGTH))
         }
 
-        // FFT and magnitude
-        let num_spectrogram_bins = FFT_LENGTH / 2 + 1
+        // --- 5. FFT magnitude ---
+        // vDSP_DFT_zop: out-of-place DFT with separate real/imag input & output.
+        // Input imag is all zeros (real signal). No scaling correction needed —
+        // vDSP_DFT_zop magnitudes match np.fft.rfft directly.
+        let numSpecBins = FFT_LENGTH / 2 + 1
+        guard
+            let dftSetup = vDSP_DFT_zop_CreateSetup(
+                nil, vDSP_Length(FFT_LENGTH), .FORWARD
+            )
+        else {
+            rejecter("DFT_SETUP_ERROR", "Failed to create DFT setup", nil)
+            return
+        }
+
+        // Pre-allocate all FFT buffers at FFT_LENGTH to guarantee correct size.
+        // Using array concatenation (frame + zeros) is avoided because Swift may
+        // not always produce an array of exactly FFT_LENGTH elements in-place,
+        // which causes vDSP_DFT_Execute to read out-of-bounds for high-freq bins.
+        var inReal = [Float32](repeating: 0, count: FFT_LENGTH)
+        var inImag = [Float32](repeating: 0, count: FFT_LENGTH)  // always zero (real signal)
+        var outReal = [Float32](repeating: 0, count: FFT_LENGTH)
+        var outImag = [Float32](repeating: 0, count: FFT_LENGTH)
+
         var magnitudeFrames = [[Float32]]()
-        var fftSetup = vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(FFT_LENGTH), .FORWARD)!
-        for frame in frames {
-            var real = [Float](frame + [Float](repeating: 0, count: FFT_LENGTH - FRAME_LENGTH))
-            var imag = [Float](repeating: 0, count: FFT_LENGTH)
-            var splitComplex = DSPSplitComplex(realp: &real, imagp: &imag)
-            vDSP_DFT_Execute(fftSetup, real, imag, &real, &imag)
-            let mags = stride(from: 0, to: num_spectrogram_bins, by: 1).map { i in
-                sqrt(real[i] * real[i] + imag[i] * imag[i])
+        var debug: [String: Any] = [
+            "windowed_frame": frames[0].map { Double($0) },
+            "window": window.map { Double($0) },
+        ]
+
+        for (idx, frame) in frames.enumerated() {
+            // Copy windowed frame into the first FRAME_LENGTH elements of inReal.
+            // Elements FRAME_LENGTH..<FFT_LENGTH remain zero (zero-padding).
+            for i in 0..<FRAME_LENGTH { inReal[i] = frame[i] }
+            for i in FRAME_LENGTH..<FFT_LENGTH { inReal[i] = 0 }
+
+            vDSP_DFT_Execute(dftSetup, inReal, inImag, &outReal, &outImag)
+
+            // Magnitude for bins 0..FFT_LENGTH/2 only (matches np.fft.rfft output range)
+            var mags = [Float32](repeating: 0, count: numSpecBins)
+            for i in 0..<numSpecBins {
+                mags[i] = sqrt(outReal[i] * outReal[i] + outImag[i] * outImag[i])
             }
+
+            if idx == 0 { debug["fft_magnitude"] = mags.map { Double($0) } }
             magnitudeFrames.append(mags)
         }
-        vDSP_DFT_DestroySetup(fftSetup)
 
-        // Mel filterbank
-        let melFilterbank = self.melFilterbank(
-            numMelBins: NUM_MFCC, numSpectrogramBins: num_spectrogram_bins, sampleRate: SAMPLE_RATE,
-            lowerEdgeHz: 0.0, upperEdgeHz: Float(SAMPLE_RATE) / 2.0)
-        var melSpectrogram = magnitudeFrames.map { frame in
-            vDSP.matrixMultiply(frame, melFilterbank)
+        vDSP_DFT_DestroySetup(dftSetup)
+
+        // --- 6. Use precomputed mel filterbank from JSON ---
+        guard let melFilterbankF = mfccConstants?.mel_filterbank, melFilterbankF.count == NUM_MFCC,
+            melFilterbankF.first?.count == numSpecBins
+        else {
+            rejecter("MFCC_CONSTANTS_ERROR", "Mel filterbank not loaded or wrong size", nil)
+            return
+        }
+        // Convert [[Float]] to [[Float32]]
+        let melFilterbank: [[Float32]] = melFilterbankF.map { $0.map { Float32($0) } }
+
+        var melSpectrogram = [[Float32]]()
+        for (idx, frame) in magnitudeFrames.enumerated() {
+            var melFrame = [Float32](repeating: 0, count: NUM_MFCC)
+            for m in 0..<NUM_MFCC {
+                vDSP_dotpr(frame, 1, melFilterbank[m], 1, &melFrame[m], vDSP_Length(frame.count))
+            }
+            if idx == 0 { debug["mel_spectrum"] = melFrame.map { Double($0) } }
+            melSpectrogram.append(melFrame)
         }
 
-        // Log mel
+        // --- 7. Log mel ---
         for i in 0..<melSpectrogram.count {
             melSpectrogram[i] = melSpectrogram[i].map { log($0 + 1e-6) }
+            if i == 0 { debug["log_mel_spectrum"] = melSpectrogram[i].map { Double($0) } }
         }
 
-        // DCT (type II, ortho)
-        var mfccs = melSpectrogram.map { frame in
-            self.dct(frame, numCoeffs: NUM_MFCC)
-        }
+        // --- 8. DCT-II ortho ---
+        // Matches scipy.fftpack.dct(x, type=2, norm='ortho') to float32 precision.
+        var mfccs = melSpectrogram.map { self.dct($0, numCoeffs: NUM_MFCC) }
+        if mfccs.count > 0 { debug["mfcc"] = mfccs[0].map { Double($0) } }
 
-        // Pad or trim to MFCC_TIME_STEPS
+        // --- 9. Pad or trim to MFCC_TIME_STEPS ---
         if mfccs.count < MFCC_TIME_STEPS {
-            let padding = MFCC_TIME_STEPS - mfccs.count
-            mfccs += Array(repeating: [Float32](repeating: 0, count: NUM_MFCC), count: padding)
+            mfccs += Array(
+                repeating: [Float32](repeating: 0, count: NUM_MFCC),
+                count: MFCC_TIME_STEPS - mfccs.count
+            )
         } else if mfccs.count > MFCC_TIME_STEPS {
             mfccs = Array(mfccs[0..<MFCC_TIME_STEPS])
         }
 
-        // Return as array of arrays
-        resolver(mfccs)
+        resolver(["mfccs": mfccs.flatMap { $0 }, "debug": debug])
     }
 
-    // Helper: Mel filterbank
-    func melFilterbank(
-        numMelBins: Int, numSpectrogramBins: Int, sampleRate: Int, lowerEdgeHz: Float,
-        upperEdgeHz: Float
-    ) -> [[Float32]] {
-        func hzToMel(_ hz: Float) -> Float { 2595.0 * log10(1.0 + hz / 700.0) }
-        func melToHz(_ mel: Float) -> Float { 700.0 * (pow(10.0, mel / 2595.0) - 1.0) }
-        let lowerMel = hzToMel(lowerEdgeHz)
-        let upperMel = hzToMel(upperEdgeHz)
-        let melEdges = (0..<(numMelBins + 2)).map { i in
-            lowerMel + (upperMel - lowerMel) * Float(i) / Float(numMelBins + 1)
-        }
-        let hzEdges = melEdges.map(melToHz)
-        var fftBins = hzEdges.map { Int(floor((Float(FFT_LENGTH) + 1) * $0 / Float(sampleRate))) }
-        fftBins = fftBins.map { min(max($0, 0), numSpectrogramBins - 1) }
-        var filterbank = Array(
-            repeating: [Float32](repeating: 0, count: numSpectrogramBins), count: numMelBins)
-        for i in 0..<numMelBins {
-            let start = fftBins[i]
-            let center = fftBins[i + 1]
-            let end = fftBins[i + 2]
-            if start < center {
-                for j in start..<center {
-                    filterbank[i][j] = Float32(j - start) / Float32(center - start)
-                }
-            }
-            if center < end {
-                for j in center..<end {
-                    filterbank[i][j] = Float32(end - j) / Float32(end - center)
-                }
-            }
-        }
-        return filterbank
-    }
+    // MARK: - Mel filterbank
+    // MARK: - Mel filterbank
+    // No longer needed: now loaded from JSON
+}
 
-    // Helper: DCT-II (ortho)
+// MARK: - DCT-II (ortho, Float32 only)
+// Matches scipy.fftpack.dct(x, type=2, norm='ortho') to float32 precision.
+extension RNMFCC {
     func dct(_ input: [Float32], numCoeffs: Int) -> [Float32] {
-        var result = [Float32](repeating: 0, count: numCoeffs)
         let N = input.count
+        var result = [Float32](repeating: 0, count: numCoeffs)
         for k in 0..<numCoeffs {
             var sum: Float32 = 0
+            let kF = Float32(k)
+            let NF = Float32(N)
             for n in 0..<N {
-                sum += input[n] * cos(Float.pi * Float(k) * (Float(n) + 0.5) / Float(N))
+                let nF = Float32(n)
+                sum += input[n] * cos(Float32.pi * kF * (nF + 0.5) / NF)
             }
-            result[k] = sum * sqrt(2.0 / Float(N))
+            result[k] = sum * sqrt(2.0 / NF)
+            if k == 0 {
+                result[k] /= sqrt(2.0)
+            }
         }
         return result
     }

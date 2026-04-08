@@ -14,6 +14,11 @@
     },
     "types": ["jest"]
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "__tests__/mfccExtractUtil.test.js",
+    "__tests__/mfccExtractUtil.test.js"
+  ],
   "exclude": ["**/node_modules", "**/Pods"]
 }

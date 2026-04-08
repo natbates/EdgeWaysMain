@@ -5,7 +5,7 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, '16.0'
+platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']
@@ -16,6 +16,12 @@ end
 
 target 'EdgewaysAudioML' do
   config = use_native_modules!
+
+  # TensorFlow Lite for on-device ML
+  pod 'TensorFlowLiteSwift'
+
+  # Material Icons (if using react-native-vector-icons)
+  pod 'RNVectorIcons', :path => '../node_modules/react-native-vector-icons'
 
   use_react_native!(
     :path => config[:reactNativePath],
@@ -31,6 +37,4 @@ target 'EdgewaysAudioML' do
       # :ccache_enabled => true
     )
   end
-
-  pod 'TensorFlowLiteSwift'
 end

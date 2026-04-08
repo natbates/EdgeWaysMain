@@ -1,113 +1,72 @@
-/**
- * Generate fake audio and extract MFCCs for testing.
- * Returns array of MFCC frames.
- */
-export function testMeydaMFCC(): number[][] {
-  // Generate a fake sine wave buffer
-  const len = 8192;
-  const freq = 440;
-  const sr = SAMPLE_RATE;
-  const audio = new Float32Array(len);
-  for (let i = 0; i < len; i++) {
-    audio[i] = Math.sin((2 * Math.PI * freq * i) / sr);
-  }
-  return extractMFCC(audio);
-}
-// utils/mfccUtils.ts
-// Utility for extracting MFCCs from audio buffers using Meyda
-// Requires: npm install meyda
+// src/utils/mfccUtils.ts
+// Unified MFCC extraction for React Native (RNMFCC native module)
 
-import Meyda from 'meyda';
+import { NativeModules } from 'react-native';
 import {
-  SAMPLE_RATE,
-  N_FFT,
-  HOP_LENGTH,
-  NUM_MFCC,
   NUM_FRAMES,
-  MEL_BANDS,
+  NUM_MFCC,
+  WINDOW_LENGTH_SAMPLES,
 } from '../constants/mlModel';
 
-/**
- * Extract MFCCs from a Float32Array audio buffer.
- * @param audioBuffer - The raw audio buffer (mono, 16kHz recommended)
- * @param sampleRate - The sample rate of the audio buffer (default 16000)
- * @param mfccCount - Number of MFCCs to extract (default 64)
- * @param windowSize - Window size in samples (default 512)
- * @param hopSize - Hop size in samples (default 256)
- * @returns Array of MFCC frames (shape: [numFrames][mfccCount])
- */
-export function extractMFCC(
-  audioBuffer: Float32Array,
-  sampleRate = SAMPLE_RATE,
-  mfccCount = NUM_MFCC,
-  windowSize = N_FFT,
-  hopSize = HOP_LENGTH,
-): number[][] {
-  const mfccFrames: number[][] = [];
-  // Set Meyda config globally (per docs)
-  Meyda.bufferSize = windowSize;
-  Meyda.sampleRate = sampleRate;
-  Meyda.melBands = MEL_BANDS;
-  Meyda.numberOfMFCCCoefficients = NUM_MFCC;
-  console.log(
-    '[MFCC] Meyda config: bufferSize',
-    windowSize,
-    'sampleRate',
-    sampleRate,
-    'melBands',
-    Meyda.melBands,
-    'numberOfMFCCCoefficients',
-    Meyda.numberOfMFCCCoefficients,
-  );
+function getRNMFCC() {
+  try {
+    return NativeModules?.RNMFCC || null;
+  } catch (e) {
+    return null;
+  }
+}
 
-  // Calculate the exact number of frames needed to match NUM_FRAMES
-  // and the audio length needed for that many frames
-  const requiredAudioLength = windowSize + (NUM_FRAMES - 1) * hopSize;
-  let buf = audioBuffer;
-  if (audioBuffer.length < requiredAudioLength) {
-    // If too short, pad with zeros
-    buf = new Float32Array(requiredAudioLength);
-    buf.set(audioBuffer);
-  } else if (audioBuffer.length > requiredAudioLength) {
-    // If too long, use last requiredAudioLength samples
-    buf = audioBuffer.slice(audioBuffer.length - requiredAudioLength);
+export function isMFCCLoaded(): boolean {
+  const RNMFCC = getRNMFCC();
+  return !!(RNMFCC && typeof RNMFCC.extractMFCCFromWaveform === 'function');
+}
+
+export async function runMFCCOnWaveform(
+  waveform: number[] | Float32Array,
+): Promise<{ mfcc: number[][]; debug: any } | null> {
+  if (!Array.isArray(waveform) && !(waveform instanceof Float32Array)) {
+    throw new Error('[MFCC] waveform must be an array or Float32Array');
   }
-  for (
-    let i = 0;
-    i + windowSize <= buf.length && mfccFrames.length < NUM_FRAMES;
-    i += hopSize
-  ) {
-    const frame = buf.slice(i, i + windowSize);
-    let mfcc: any = null;
-    try {
-      mfcc = Meyda.extract('mfcc', frame);
-      // eslint-disable-next-line no-console
-      console.log(
-        '[MFCC] Meyda.extract called, frame length:',
-        frame.length,
-        'result:',
-        mfcc,
+  const fixed = new Float32Array(WINDOW_LENGTH_SAMPLES);
+  const copyLen = Math.min(waveform.length, WINDOW_LENGTH_SAMPLES);
+  for (let i = 0; i < copyLen; i += 1) {
+    fixed[i] = waveform[i];
+  }
+  const RNMFCC = getRNMFCC();
+  if (!RNMFCC || typeof RNMFCC.extractMFCCFromWaveform !== 'function') {
+    throw new Error(
+      '[MFCC] Native extractMFCCFromWaveform not available. Make sure the native module is linked and available at runtime.',
+    );
+  }
+  const output = await RNMFCC.extractMFCCFromWaveform(Array.from(fixed));
+  // Output: { mfccs: flatArray, debug: ... }
+  if (output && typeof output === 'object' && output.mfccs && output.debug) {
+    const mfccsFlat = output.mfccs;
+    if (
+      !Array.isArray(mfccsFlat) ||
+      mfccsFlat.length !== NUM_FRAMES * NUM_MFCC
+    ) {
+      throw new Error(
+        `[MFCC] Invalid output length: expected ${NUM_FRAMES * NUM_MFCC}, got ${
+          mfccsFlat?.length
+        }`,
       );
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.log('[MFCC] Meyda.extract error:', err);
-      mfcc = null;
     }
-    // Robustly handle both array and object return types
-    if (Array.isArray(mfcc)) {
-      mfccFrames.push(mfcc);
-    } else if (mfcc && Array.isArray(mfcc.mfcc)) {
-      mfccFrames.push(mfcc.mfcc);
-    } else if (mfcc) {
-      // eslint-disable-next-line no-console
-      console.log('[MFCC] Unexpected Meyda.extract return type:', mfcc);
+    const mfcc = [];
+    for (let i = 0; i < NUM_FRAMES; i += 1) {
+      mfcc.push(mfccsFlat.slice(i * NUM_MFCC, (i + 1) * NUM_MFCC));
     }
+    return { mfcc, debug: output.debug };
+  } else if (Array.isArray(output) && output.length === NUM_FRAMES * NUM_MFCC) {
+    // Legacy: just a flat array
+    const mfcc = [];
+    for (let i = 0; i < NUM_FRAMES; i += 1) {
+      mfcc.push(output.slice(i * NUM_MFCC, (i + 1) * NUM_MFCC));
+    }
+    return { mfcc, debug: null };
+  } else {
+    throw new Error(
+      `[MFCC] Invalid output: expected flat array or object with mfccs/debug, got ${typeof output}`,
+    );
   }
-  // Confirm shape
-  console.log(
-    '[MFCC] Final mfccFrames shape:',
-    mfccFrames.length,
-    mfccFrames[0]?.length,
-  );
-  return mfccFrames;
 }

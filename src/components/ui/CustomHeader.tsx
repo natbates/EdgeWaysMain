@@ -17,6 +17,8 @@ type Props = ViewProps & {
   onLeftPress?: () => void;
   rightIcon?: string;
   onRightPress?: () => void;
+  rightIcon2?: string;
+  onRight2Press?: () => void;
   hideLogo?: boolean;
 };
 
@@ -28,6 +30,8 @@ export default function CustomHeader({
   onLeftPress,
   rightIcon,
   onRightPress,
+  rightIcon2,
+  onRight2Press,
   hideLogo,
   ...props
 }: Props) {
@@ -58,6 +62,9 @@ export default function CustomHeader({
         {rightIcon && onRightPress ? (
           <Appbar.Action icon={rightIcon} onPress={onRightPress} />
         ) : null}
+        {rightIcon2 && onRight2Press ? (
+          <Appbar.Action icon={rightIcon2} onPress={onRight2Press} />
+        ) : null}
       </View>
     </Appbar.Header>
   );
@@ -76,14 +83,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   centerSection: {
-    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    pointerEvents: 'none',
   },
   rightSection: {
-    width: 56,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    width: 96,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   logo: {
     width: 34,

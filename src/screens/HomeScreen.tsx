@@ -16,7 +16,9 @@ export default function HomeScreen({ onGetStarted }: HomeScreenProps) {
         resizeMode="contain"
       />
       <CustomText style={styles.logo}>Edgeways</CustomText>
-      <CustomText style={styles.tagline}>Record • Train • Recognize</CustomText>
+      <CustomText style={styles.tagline}>
+        App that allows you to find the audio hog
+      </CustomText>
       <CustomButton
         title="Get started"
         onPress={onGetStarted}
@@ -31,7 +33,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 16,
     backgroundColor: colorScheme.background,
   },
   logoImage: {

@@ -1,0 +1,13 @@
+// Backup of mfccExtractUtil.js before removal
+const runMFCCOnWaveform = require('./mfccUtils').runMFCCOnWaveform;
+
+async function extractMFCCWithParams(waveform) {
+    if (!runMFCCOnWaveform) {
+        throw new Error('Native MFCC path unavailable');
+    }
+    return await runMFCCOnWaveform(waveform);
+}
+
+module.exports = {
+    extractMFCCWithParams,
+};

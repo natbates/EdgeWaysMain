@@ -18,7 +18,7 @@ function seededRandom(seed: number) {
   };
 }
 
-export function computeProfileSpeakingPercentages(
+export function computeProfileSpeakingDurations(
   timeline: TimelineEntry[],
   profileNames: string[],
 ): Record<string, number> {
@@ -27,18 +27,20 @@ export function computeProfileSpeakingPercentages(
     durations[name] = 0;
   }
 
-  let total = 0;
-  let seed = 0;
   for (const entry of timeline) {
     durations[entry.profileName] =
       (durations[entry.profileName] ?? 0) + entry.durationSec;
-    total += entry.durationSec;
-
-    // Derive a deterministic seed based on timeline for reproducible "random" values.
-    seed =
-      (seed * 31 + entry.profileName.length + Math.floor(entry.durationSec)) >>>
-      0;
   }
+
+  return durations;
+}
+
+export function computeProfileSpeakingPercentages(
+  timeline: TimelineEntry[],
+  profileNames: string[],
+): Record<string, number> {
+  const durations = computeProfileSpeakingDurations(timeline, profileNames);
+  const total = Object.values(durations).reduce((sum, v) => sum + v, 0);
 
   if (total <= 0) {
     return profileNames.reduce((acc, name) => {
@@ -47,31 +49,16 @@ export function computeProfileSpeakingPercentages(
     }, {} as Record<string, number>);
   }
 
-  const random = seededRandom(seed);
+  const percents = profileNames.reduce((acc, name) => {
+    acc[name] = (durations[name] ?? 0) / total;
+    return acc;
+  }, {} as Record<string, number>);
 
-  // Add a slight jitter so profiles look more "random" while still being derived
-  // from the timeline. Then normalize back to sum = 1.
-  const raw: Record<string, number> = {};
-  let rawTotal = 0;
-  for (const name of profileNames) {
-    const base = durations[name] ?? 0;
-    const jitter = 0.9 + random() * 0.2; // +/-10%
-    raw[name] = base * jitter;
-    rawTotal += raw[name];
-  }
-
-  const percents: Record<string, number> = {};
-  let runningTotal = 0;
-  for (const name of profileNames) {
-    const pct = rawTotal > 0 ? raw[name] / rawTotal : 0;
-    percents[name] = pct;
-    runningTotal += pct;
-  }
-
-  if (profileNames.length > 0) {
-    const last = profileNames[profileNames.length - 1];
-    percents[last] += 1 - runningTotal;
-  }
+  // console.log('[sessionUtils] percentages', {
+  //   total,
+  //   durations,
+  //   percents,
+  // });
 
   return percents;
 }

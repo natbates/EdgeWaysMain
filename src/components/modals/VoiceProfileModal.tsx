@@ -6,10 +6,10 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
+import { Row } from '@components/layout';
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
-  BottomSheetModalProvider,
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import AudioRecord from 'react-native-audio-record';
@@ -17,13 +17,17 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 import { CustomButton, CustomInput, CustomText } from '@components';
 import { colorScheme } from '@constants/colorScheme';
+import { profileColors } from '@constants/profileColors';
 import { runModelOnMFCC } from '@utils/mlModelUtils';
-import { extractMFCC } from '@utils/mfccUtils';
+import { runMFCCOnWaveform } from '@utils/mfccUtils';
+// import { extractMFCC } from '@utils/mfccUtils'; (removed Meyda dependency)
 import { decodePcm16Base64ToFloat32 } from '@utils/audioUtils';
 import {
   TRAINING_RECORD_DURATION_SEC,
   WINDOW_LENGTH_SAMPLES,
+  WINDOW_DURATION_SEC,
 } from '@constants/mlModel';
+import { loadSettings, Settings } from '@utils/settings';
 import type { VoiceProfile } from '@types';
 
 export type VoiceProfileModalProps = {
@@ -31,6 +35,7 @@ export type VoiceProfileModalProps = {
   onClose: () => void;
   profiles: VoiceProfile[];
   onAdd: (profile: VoiceProfile) => void;
+  onUpdate?: (profile: VoiceProfile) => void;
   onDelete: (name: string) => void;
   showEmbeddingPreview?: boolean;
 };
@@ -40,14 +45,18 @@ export default function VoiceProfileModal({
   onClose,
   profiles,
   onAdd,
+  onUpdate,
   onDelete,
   showEmbeddingPreview = false,
 }: VoiceProfileModalProps) {
   const [name, setName] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [progress, setProgress] = useState<string>('');
-  const [recordProgress, setRecordProgress] = useState(0); // 0..1
-
+  const [recordProgress, setRecordProgress] = useState(0); // 0..1 raw
+  const [reRecordTarget, setReRecordTarget] = useState<string | null>(null);
+  const [smoothRecordProgress, setSmoothRecordProgress] = useState(0);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const effectiveSampleRateRef = React.useRef<number>(16000);
   const stopRecordingRef = React.useRef<() => void>(() => {});
   const bottomSheetModalRef = React.useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ['55%', '100%'], []);
@@ -55,6 +64,12 @@ export default function VoiceProfileModal({
   const openSheet = () => {
     bottomSheetModalRef.current?.present();
   };
+
+  useEffect(() => {
+    loadSettings()
+      .then(setSettings)
+      .catch(() => {});
+  }, []);
 
   const closeSheet = () => {
     bottomSheetModalRef.current?.dismiss();
@@ -93,6 +108,14 @@ export default function VoiceProfileModal({
     closeSheet();
   };
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSmoothRecordProgress(prev => prev + (recordProgress - prev) * 0.18);
+    }, 40);
+
+    return () => clearInterval(interval);
+  }, [recordProgress]);
+
   const handleDismiss = useCallback(() => {
     // Only call onClose if the modal is still intended to be visible.
     if (!visible) return;
@@ -105,18 +128,30 @@ export default function VoiceProfileModal({
     }
   };
 
+  const BUTTON_HEIGHT = 44;
   const canCreate = Boolean(name.trim()) && !isRecording;
 
   const recordAndTrain = async (profileName: string) => {
     setIsRecording(true);
     setProgress('Recording...');
 
-    const targetSamples = TRAINING_RECORD_DURATION_SEC * 16000;
     const chunks: Float32Array[] = [];
     let totalSamples = 0;
     let stopped = false;
 
-    const stop = async () => {
+    const getTargetSamples = () => {
+      const durationSec =
+        settings?.trainingRecordDurationSec ?? TRAINING_RECORD_DURATION_SEC;
+      return Math.round(durationSec * effectiveSampleRateRef.current);
+    };
+
+    const getWindowSamples = () =>
+      Math.max(
+        256,
+        Math.round(WINDOW_DURATION_SEC * 16000), // force 16kHz model expectations
+      );
+
+    const stop = async (shouldSave: boolean) => {
       if (stopped) return;
       stopped = true;
       try {
@@ -128,6 +163,16 @@ export default function VoiceProfileModal({
       // Clear the stop callback so it cannot be invoked repeatedly.
       stopRecordingRef.current = () => {};
 
+      setIsRecording(false);
+      setRecordProgress(0);
+
+      if (!shouldSave) {
+        setProgress('Recording canceled');
+        setReRecordTarget(null);
+        return;
+      }
+
+      const targetSamples = getTargetSamples();
       const flat = new Float32Array(targetSamples);
       let offset = 0;
       for (const chunk of chunks) {
@@ -137,22 +182,24 @@ export default function VoiceProfileModal({
         offset += Math.min(chunk.length, remaining);
       }
 
-      const segmentSize = WINDOW_LENGTH_SAMPLES;
-      const segmentCount = Math.floor(targetSamples / segmentSize);
+      const windowSamples = getWindowSamples();
+      const segmentCount = Math.floor(targetSamples / windowSamples);
+      const segmentSize = windowSamples;
       const embeddings: number[][] = [];
 
       for (let i = 0; i < segmentCount; i += 1) {
         setProgress(`Processing segment ${i + 1} / ${segmentCount}`);
         const segment = flat.subarray(i * segmentSize, (i + 1) * segmentSize);
-        const frames = extractMFCC(segment);
-        if (!frames.length) continue;
-        const emb = await runModelOnMFCC(frames);
+        const mfccResult = await runMFCCOnWaveform(segment);
+        if (!mfccResult) continue;
+        const emb = await runModelOnMFCC(mfccResult.mfcc);
         if (emb) embeddings.push(emb);
       }
 
       if (!embeddings.length) {
         setProgress('Training failed: no embeddings');
-        setIsRecording(false);
+        setName('');
+        setReRecordTarget(null);
         return;
       }
 
@@ -166,9 +213,25 @@ export default function VoiceProfileModal({
         avg[i] /= embeddings.length;
       }
 
-      onAdd({ name: profileName, embedding: avg });
+      // Normalize profile embedding to unit length, matching Python behavior.
+      const norm = Math.sqrt(avg.reduce((sum, v) => sum + v * v, 0));
+      if (norm > 0) {
+        for (let i = 0; i < avg.length; i += 1) {
+          avg[i] /= norm;
+        }
+      }
+
+      if (reRecordTarget && onUpdate) {
+        onUpdate({ name: profileName, embedding: avg });
+        setReRecordTarget(null);
+      } else {
+        if (reRecordTarget) {
+          onDelete(reRecordTarget);
+          setReRecordTarget(null);
+        }
+        onAdd({ name: profileName, embedding: avg });
+      }
       setProgress('Training complete');
-      setIsRecording(false);
       setName('');
     };
 
@@ -179,17 +242,30 @@ export default function VoiceProfileModal({
       wavFile: '',
     });
 
-    stopRecordingRef.current = stop;
+    stopRecordingRef.current = () => stop(false);
+
+    const lastChunkAtRef = { current: Date.now() };
 
     AudioRecord.on('data', (data: string) => {
       if (stopped) return;
       try {
         const float32 = decodePcm16Base64ToFloat32(data);
+
+        const now = Date.now();
+        const deltaMs = now - lastChunkAtRef.current;
+        lastChunkAtRef.current = now;
+        if (deltaMs > 0) {
+          const observedSampleRate = (float32.length * 1000) / deltaMs;
+          effectiveSampleRateRef.current =
+            effectiveSampleRateRef.current * 0.85 + observedSampleRate * 0.15;
+        }
+
         chunks.push(float32);
         totalSamples += float32.length;
+        const targetSamples = getTargetSamples();
         setRecordProgress(Math.min(1, totalSamples / targetSamples));
         if (totalSamples >= targetSamples) {
-          stop();
+          stop(true);
         }
       } catch (err) {
         console.warn('[VoiceProfileModal] PCM decode error', err);
@@ -205,108 +281,134 @@ export default function VoiceProfileModal({
     recordAndTrain(trimmed);
   };
 
+  const hexToRgba = (hex: string, alpha = 0.2) => {
+    const normalized = hex.replace('#', '');
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
   const previewRows = useMemo(() => {
-    return profiles.map(profile => (
-      <View key={profile.name} style={styles.profileRow}>
-        <View style={{ flex: 1 }}>
-          <CustomText style={styles.profileName}>{profile.name}</CustomText>
-          {showEmbeddingPreview && (
-            <CustomText style={styles.profileEmbedding}>
-              [
-              {profile.embedding
-                .slice(0, 10)
-                .map(v => v.toFixed(3))
-                .join(', ')}
-              {profile.embedding.length > 10 ? ' ...' : ''}]
-            </CustomText>
-          )}
-        </View>
-        <TouchableOpacity
-          style={styles.deleteIcon}
-          onPress={() => onDelete(profile.name)}
+    return profiles.map((profile, idx) => {
+      const bgColor = hexToRgba(profileColors[idx % profileColors.length], 1);
+      return (
+        <View
+          key={profile.name}
+          style={[styles.profileRow, { backgroundColor: bgColor }]}
         >
-          <MaterialCommunityIcons
-            name="delete-outline"
-            size={24}
-            color={colorScheme.error}
-          />
-        </TouchableOpacity>
-      </View>
-    ));
-  }, [profiles, showEmbeddingPreview, onDelete]);
+          <View style={{ flex: 1 }}>
+            <CustomText style={styles.profileName}>{profile.name}</CustomText>
+            {false && (
+              <CustomText style={styles.profileEmbedding}>
+                [
+                {profile.embedding
+                  .slice(0, 10)
+                  .map(v => v.toFixed(3))
+                  .join(', ')}
+                {profile.embedding.length > 10 ? ' ...' : ''}]
+              </CustomText>
+            )}
+          </View>
+          <View style={styles.profileActions}>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => {
+                setName(profile.name);
+                setReRecordTarget(profile.name);
+                recordAndTrain(profile.name);
+              }}
+              disabled={isRecording}
+            >
+              <MaterialCommunityIcons
+                name="autorenew"
+                size={22}
+                color={
+                  isRecording ? colorScheme.subText : colorScheme.accentText
+                }
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteIcon}
+              onPress={() => onDelete(profile.name)}
+            >
+              <MaterialCommunityIcons
+                name="delete-outline"
+                size={24}
+                color={colorScheme.accentText}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    });
+  }, [profiles, showEmbeddingPreview, onDelete, isRecording]);
 
   return (
-    <BottomSheetModalProvider>
-      <BottomSheetModal
-        ref={bottomSheetModalRef}
-        index={0}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        enableHandlePanningGesture
-        enableContentPanningGesture
-        enableDismissOnClose
-        onChange={handleSheetChange}
-        onDismiss={handleDismiss}
-        backdropComponent={renderBackdrop}
-        style={styles.bottomSheet}
-        backgroundStyle={styles.bottomSheetBackground}
-        handleIndicatorStyle={styles.handleIndicator}
+    <BottomSheetModal
+      ref={bottomSheetModalRef}
+      index={0}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      enableHandlePanningGesture
+      enableContentPanningGesture
+      enableDismissOnClose
+      onChange={handleSheetChange}
+      onDismiss={handleDismiss}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={styles.bottomSheetBackground}
+      handleIndicatorStyle={styles.handleIndicator}
+    >
+      <BottomSheetScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
       >
-        <BottomSheetScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View>
-              <CustomText style={styles.title}>Voice Profiles</CustomText>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View>
+            <CustomText style={styles.title}>Voice Profiles</CustomText>
 
-              <View style={styles.row}>
-                <CustomInput
-                  style={styles.input}
-                  placeholder="Profile name"
-                  value={name}
-                  onChangeText={setName}
-                  editable={!isRecording}
-                />
-                <CustomButton
-                  title={isRecording ? 'Stop' : 'Add'}
-                  onPress={
-                    isRecording ? stopRecordingRef.current : handleCreate
-                  }
-                  disabled={!canCreate && !isRecording}
+            <Row style={styles.row}>
+              <CustomInput
+                style={styles.input}
+                placeholder="Profile name"
+                value={name}
+                onChangeText={setName}
+                editable={!isRecording}
+              />
+              <CustomButton
+                title={isRecording ? 'Cancel' : 'Add'}
+                onPress={
+                  isRecording ? () => stopRecordingRef.current() : handleCreate
+                }
+                disabled={!canCreate && !isRecording}
+                style={styles.addButton}
+              />
+            </Row>
+
+            {isRecording ? (
+              <View style={styles.progressBarContainer}>
+                <View
+                  style={[
+                    styles.progressBar,
+                    { width: `${smoothRecordProgress * 100}%` },
+                  ]}
                 />
               </View>
+            ) : null}
 
-              {isRecording ? (
-                <View style={styles.progressBarContainer}>
-                  <View
-                    style={[
-                      styles.progressBar,
-                      { width: `${recordProgress * 100}%` },
-                    ]}
-                  />
-                </View>
-              ) : null}
+            {progress ? (
+              <CustomText style={styles.debug}>{progress}</CustomText>
+            ) : null}
 
-              {progress ? (
-                <CustomText style={styles.debug}>{progress}</CustomText>
-              ) : null}
-
-              <View style={styles.list}>{previewRows}</View>
-            </View>
-          </TouchableWithoutFeedback>
-        </BottomSheetScrollView>
-      </BottomSheetModal>
-    </BottomSheetModalProvider>
+            <View style={styles.list}>{previewRows}</View>
+          </View>
+        </TouchableWithoutFeedback>
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  bottomSheet: {
-    position: 'absolute',
-    zIndex: 9999,
-    elevation: 9999,
-  },
   bottomSheetBackground: {
     backgroundColor: colorScheme.background,
   },
@@ -331,12 +433,18 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    height: 44,
     borderWidth: 1,
     borderColor: colorScheme.border,
     borderRadius: 4,
-    padding: 8,
+    paddingHorizontal: 12,
     marginRight: 8,
     backgroundColor: colorScheme.surface,
+  },
+  addButton: {
+    height: 44,
+    justifyContent: 'center',
+    paddingVertical: 0,
   },
   list: {
     maxHeight: 260,
@@ -361,13 +469,24 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    padding: 10,
+  },
+  profileActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  retryButton: {
+    padding: 8,
   },
   deleteIcon: {
     padding: 8,
   },
   profileName: {
     fontWeight: '600',
-    color: colorScheme.primaryText,
+    fontSize: 20,
+    color: colorScheme.accentText,
   },
   profileEmbedding: {
     fontSize: 11,

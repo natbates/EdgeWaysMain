@@ -30,11 +30,23 @@ import SessionPage from '../pages/SessionPage';
 type SessionsScreenProps = {
   onDetailOpen?: () => void;
   onDetailClose?: () => void;
+  onChildHorizontalScrollStart?: () => void;
+  onChildHorizontalScrollEnd?: () => void;
+  onOpenSettingsFromSession?: () => void;
+  sessionPageHideBottomPadding?: boolean;
+  showHeader?: boolean;
+  externalSessionExitTrigger?: number;
 };
 
 export default function SessionsScreen({
   onDetailOpen,
   onDetailClose,
+  onChildHorizontalScrollStart,
+  onChildHorizontalScrollEnd,
+  onOpenSettingsFromSession,
+  sessionPageHideBottomPadding,
+  showHeader,
+  externalSessionExitTrigger,
 }: SessionsScreenProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [newName, setNewName] = useState('');
@@ -56,6 +68,14 @@ export default function SessionsScreen({
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (externalSessionExitTrigger && activeSession) {
+      setActiveSession(null);
+      refresh();
+      onDetailClose?.();
+    }
+  }, [externalSessionExitTrigger, activeSession, onDetailClose]);
 
   const handleCreate = async () => {
     if (storageError) return;
@@ -92,86 +112,101 @@ export default function SessionsScreen({
 
   if (activeSession) {
     return (
-      <SessionPage
-        session={activeSession}
-        onExit={() => {
-          setActiveSession(null);
-          refresh();
-          onDetailClose?.();
-        }}
-        onUpdate={async updated => {
-          await updateSession(updated);
-          setActiveSession(updated);
-        }}
-      />
+      <View style={styles.container}>
+        <SessionPage
+          session={activeSession}
+          onExit={() => {
+            setActiveSession(null);
+            refresh();
+            onDetailClose?.();
+          }}
+          onUpdate={async updated => {
+            await updateSession(updated);
+            setActiveSession(prev =>
+              prev?.id === updated.id ? updated : prev,
+            );
+          }}
+          onChildHorizontalScrollStart={onChildHorizontalScrollStart}
+          onChildHorizontalScrollEnd={onChildHorizontalScrollEnd}
+          onOpenSettings={() => {
+            onOpenSettingsFromSession?.();
+          }}
+          hideBottomPadding={Boolean(sessionPageHideBottomPadding)}
+        />
+      </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Sessions"
-        rightIcon="plus"
-        onRightPress={() => setShowCreateModal(true)}
-      />
-
-      {storageError ? (
-        <CustomText style={styles.error}>{storageError}</CustomText>
+      {showHeader !== false ? (
+        <CustomHeader
+          title="Sessions"
+          rightIcon="plus"
+          onRightPress={() => setShowCreateModal(true)}
+        />
       ) : null}
+      <View style={styles.content}>
+        {storageError ? (
+          <CustomText style={styles.error}>{storageError}</CustomText>
+        ) : null}
 
-      <FlatList
-        data={
-          USE_MOCK_SESSIONS
-            ? [
-                ...MOCK_SESSIONS,
-                ...sessions.filter(s => !s.id.startsWith('mock-')),
-              ]
-            : sessions
-        }
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => {
-          const isMock = item.id.startsWith('mock-');
-          return (
-            <TouchableOpacity
-              style={styles.sessionCard}
-              activeOpacity={0.85}
-              onPress={() =>
-                isMock ? handleLoadMock(item) : handleLoad(item.id)
-              }
-            >
-              <View style={styles.sessionMetaContainer}>
-                <CustomText style={styles.sessionName}>{item.name}</CustomText>
-                <CustomText style={styles.sessionMeta}>
-                  created {new Date(item.createdAt).toLocaleString()}
-                  {isMock ? ' (demo)' : ''}
-                </CustomText>
-              </View>
+        <FlatList
+          data={
+            USE_MOCK_SESSIONS
+              ? [
+                  ...MOCK_SESSIONS,
+                  ...sessions.filter(s => !s.id.startsWith('mock-')),
+                ]
+              : sessions
+          }
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => {
+            const isMock = item.id.startsWith('mock-');
+            return (
+              <TouchableOpacity
+                style={styles.sessionCard}
+                activeOpacity={0.85}
+                onPress={() =>
+                  isMock ? handleLoadMock(item) : handleLoad(item.id)
+                }
+              >
+                <View style={styles.sessionMetaContainer}>
+                  <CustomText style={styles.sessionName}>
+                    {item.name}
+                  </CustomText>
+                  <CustomText style={styles.sessionMeta}>
+                    created {new Date(item.createdAt).toLocaleString()}
+                    {isMock ? ' (demo)' : ''}
+                  </CustomText>
+                </View>
 
-              {!isMock ? (
-                <TouchableOpacity
-                  style={styles.deleteIcon}
-                  activeOpacity={0.7}
-                  onPress={e => {
-                    e.stopPropagation();
-                    handleDelete(item.id);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="delete-outline"
-                    size={22}
-                    color={colorScheme.error}
-                  />
-                </TouchableOpacity>
-              ) : null}
-            </TouchableOpacity>
-          );
-        }}
-        ListEmptyComponent={
-          <CustomText style={styles.empty}>No sessions yet</CustomText>
-        }
-        ListFooterComponent={<View style={styles.listFooter} />}
-        contentContainerStyle={styles.listContent}
-      />
+                {!isMock ? (
+                  <TouchableOpacity
+                    style={styles.deleteIcon}
+                    activeOpacity={0.7}
+                    onPress={e => {
+                      e.stopPropagation();
+                      handleDelete(item.id);
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="delete-outline"
+                      size={22}
+                      color={colorScheme.accent}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={
+            <CustomText style={styles.empty}>No sessions yet</CustomText>
+          }
+          ListFooterComponent={<View style={styles.listFooter} />}
+          contentContainerStyle={styles.listContent}
+        />
+      </View>
 
       <Modal
         visible={showCreateModal}
@@ -218,8 +253,12 @@ export default function SessionsScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 0,
     backgroundColor: colorScheme.background,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
   },
   error: {
     textAlign: 'center',
@@ -233,8 +272,8 @@ const styles = StyleSheet.create({
     padding: 16,
     marginVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.15)',
-    borderRadius: 16,
+    borderColor: colorScheme.border,
+    borderRadius: 12,
     backgroundColor: colorScheme.surface,
   },
   sessionMetaContainer: {

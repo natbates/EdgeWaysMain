@@ -6,10 +6,7 @@ import {
   COSINE_MIN_CONFIDENCE,
   TRAINING_RECORD_DURATION_SEC,
 } from '../constants/mlModel';
-import {
-  mapRmsThresholdToSlider,
-  mapZcrThresholdToSlider,
-} from './vad';
+import { mapRmsThresholdToSlider, mapZcrThresholdToSlider } from './vad';
 
 const STORAGE_KEY = '@edgeways_settings_v1';
 

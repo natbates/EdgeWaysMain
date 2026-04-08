@@ -1,5 +1,6 @@
 import type { Session, VoiceProfile, TimelineEntry } from '../types';
 import { computeProfileSpeakingPercentages } from '../utils/sessionUtils';
+import { EMBEDDING_DIM } from '../constants/mlModel';
 
 // Set to true to enable mock sessions in the Sessions screen.
 // This file is meant to be easy to tweak for development/demo purposes.
@@ -81,13 +82,17 @@ export const MOCK_SESSIONS: Session[] = [
     id: 'mock-1',
     name: 'Demo Session A',
     createdAt: Date.now(),
-    recordedTimeSec: 15,
-    profileCount: 3,
-    embeddingSize: 128,
+    recordedTimeSec: 26,
+    profileCount: 6,
+    embeddingSize: EMBEDDING_DIM,
     timeline: [
-      { profileIndex: 0, startTimeSec: 0, durationSec: 4 },
-      { profileIndex: 1, startTimeSec: 8, durationSec: 3 },
-      { profileIndex: 2, startTimeSec: 14, durationSec: 2 },
+      { profileIndex: 0, startTimeSec: 0, durationSec: 3 },
+      { profileIndex: 1, startTimeSec: 3.5, durationSec: 2.5 },
+      { profileIndex: 2, startTimeSec: 6.5, durationSec: 4 },
+      { profileIndex: 3, startTimeSec: 11, durationSec: 3 },
+      { profileIndex: 4, startTimeSec: 15, durationSec: 4 },
+      { profileIndex: 5, startTimeSec: 20.5, durationSec: 2 },
+      { profileIndex: 0, startTimeSec: 23, durationSec: 3 },
     ],
   }),
   createMockSession({
@@ -96,7 +101,7 @@ export const MOCK_SESSIONS: Session[] = [
     createdAt: Date.now() - 1000 * 60 * 60,
     recordedTimeSec: 32,
     profileCount: 2,
-    embeddingSize: 128,
+    embeddingSize: EMBEDDING_DIM,
     timeline: [
       { profileIndex: 0, startTimeSec: 0, durationSec: 5 },
       { profileIndex: 1, startTimeSec: 10, durationSec: 6 },

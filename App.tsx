@@ -9,6 +9,7 @@ import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import HomePage from './src/pages/HomePage';
 import { colorScheme } from './src/constants/colorScheme';
 
@@ -46,15 +47,19 @@ function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <PaperProvider theme={paperTheme}>
-          <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-          <View
-            style={[
-              styles.container,
-              { backgroundColor: colorScheme.background },
-            ]}
-          >
-            <HomePage />
-          </View>
+          <BottomSheetModalProvider>
+            <StatusBar
+              barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+            />
+            <View
+              style={[
+                styles.container,
+                { backgroundColor: colorScheme.background },
+              ]}
+            >
+              <HomePage />
+            </View>
+          </BottomSheetModalProvider>
         </PaperProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

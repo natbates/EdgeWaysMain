@@ -7,6 +7,7 @@ import {
   Text,
   ScrollView,
 } from 'react-native';
+import { Row, Column, Center, Spacer } from '@components/layout';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Removed useSafeAreaInsets, using SafeAreaView instead
 import { CustomHeader, CustomText } from '@components';
@@ -23,7 +24,17 @@ const HELP_TEXTS = [
   'Want to reset? Delete sessions from the Sessions tab and start fresh.',
 ];
 
-export default function SettingsScreen() {
+type SettingsScreenProps = {
+  showBackToSession?: boolean;
+  onBackToSession?: () => void;
+  showHeader?: boolean;
+};
+
+export default function SettingsScreen({
+  showBackToSession,
+  onBackToSession,
+  showHeader,
+}: SettingsScreenProps) {
   const [showHelp, setShowHelp] = useState(false);
   const [helpText, setHelpText] = useState('');
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -45,19 +56,33 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <CustomHeader
-        title="Settings"
-        rightIcon="help-circle-outline"
-        onRightPress={openHelp}
-      />
-      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+    <Column style={styles.container}>
+      {showHeader !== false ? (
+        <CustomHeader
+          title="Settings"
+          leftIcon={showBackToSession ? 'chevron-left' : undefined}
+          onLeftPress={showBackToSession ? onBackToSession : undefined}
+          hideLogo={showBackToSession}
+          rightIcon="help-circle-outline"
+          onRightPress={openHelp}
+        />
+      ) : null}
+      {showHeader !== false && <Spacer size={12} />}
+      <SafeAreaView
+        edges={['bottom']}
+        style={[
+          styles.body,
+          showBackToSession ? styles.bodyNoBottomPadding : null,
+        ]}
+      >
         <ScrollView
           contentContainerStyle={{
-            paddingBottom: 160,
+            flexGrow: 1,
+            paddingBottom: 16,
             paddingHorizontal: 16,
             paddingTop: 16,
           }}
+          scrollIndicatorInsets={{ bottom: 16 }}
         >
           {settings &&
             settingsConfig.map(setting => {
@@ -69,14 +94,14 @@ export default function SettingsScreen() {
 
               return (
                 <View key={setting.key}>
-                  <View style={styles.settingRow}>
+                  <Row style={styles.settingRow}>
                     <CustomText style={styles.settingLabel}>
                       {setting.label}
                     </CustomText>
                     <CustomText style={styles.settingValue}>
                       {formattedValue}
                     </CustomText>
-                  </View>
+                  </Row>
 
                   <CustomSlider
                     value={value}
@@ -102,7 +127,7 @@ export default function SettingsScreen() {
           animationType="fade"
           onRequestClose={() => setShowHelp(false)}
         >
-          <View style={styles.modalOverlay}>
+          <Center style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <ScrollView>
                 <Text style={styles.modalTitle}>Help</Text>
@@ -119,17 +144,17 @@ export default function SettingsScreen() {
                 <Text style={styles.modalCloseText}>Close</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Center>
         </Modal>
       </SafeAreaView>
-    </View>
+    </Column>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 0,
     justifyContent: 'flex-start',
     alignItems: 'stretch',
     backgroundColor: colorScheme.background,
@@ -137,8 +162,13 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     width: '100%',
-    paddingHorizontal: 16,
-    marginTop: 16,
+    paddingHorizontal: 0,
+    paddingTop: 16,
+    paddingBottom: 40,
+    overflow: 'visible',
+  },
+  bodyNoBottomPadding: {
+    paddingBottom: 0,
   },
   settingRow: {
     flexDirection: 'row',

@@ -12,11 +12,13 @@ import { colorScheme } from '../constants/colorScheme';
 import HomeScreen from '../screens/HomeScreen';
 import SessionsScreen from '../screens/SessionsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import TroubleshootScreen from '../screens/TroubleshootScreen';
 
 const PAGES = [
   { key: 'home', title: 'Home', icon: 'home-outline' },
   { key: 'sessions', title: 'Sessions', icon: 'music-circle-outline' },
   { key: 'settings', title: 'Settings', icon: 'cog-outline' },
+  // { key: 'troubleshoot', title: 'Troubleshoot', icon: 'bug-outline' },
 ];
 
 function HomePageContent() {
@@ -26,10 +28,13 @@ function HomePageContent() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [navWidth, setNavWidth] = useState(0);
   const [isSessionDetailOpen, setIsSessionDetailOpen] = useState(false);
+  const [sessionBackFromSettings, setSessionBackFromSettings] = useState(false);
 
+  const [isOuterScrollEnabled, setIsOuterScrollEnabled] = useState(true);
   const scrollX = useRef(new Animated.Value(0)).current;
 
-  const innerWidth = navWidth ? navWidth - 36 : 0; // account for left/right padding
+  const navPadding = 18; // both left/right padding
+  const innerWidth = navWidth ? navWidth - navPadding * 2 : 0; // 18px each side
   const bottomNavOffset = insets.bottom + 12; // leave room for home indicator / safe area
   const tabWidth = innerWidth / PAGES.length;
   const indicatorWidth = tabWidth * 0.8; // make the indicator longer
@@ -53,7 +58,7 @@ function HomePageContent() {
     [width],
   );
 
-  const showBottomNav = !isSessionDetailOpen;
+  const showBottomNav = !isSessionDetailOpen && !sessionBackFromSettings;
 
   return (
     <View style={styles.container}>
@@ -61,6 +66,7 @@ function HomePageContent() {
         ref={scrollRef}
         horizontal
         pagingEnabled
+        scrollEnabled={isOuterScrollEnabled && !isSessionDetailOpen}
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onMomentumScrollEnd}
         onScroll={Animated.event(
@@ -78,12 +84,29 @@ function HomePageContent() {
           <SessionsScreen
             onDetailOpen={() => setIsSessionDetailOpen(true)}
             onDetailClose={() => setIsSessionDetailOpen(false)}
+            onChildHorizontalScrollStart={() => setIsOuterScrollEnabled(false)}
+            onChildHorizontalScrollEnd={() => setIsOuterScrollEnabled(true)}
+            onOpenSettingsFromSession={() => {
+              setSessionBackFromSettings(true);
+              setIsSessionDetailOpen(false);
+              goToIndex(2);
+            }}
+            sessionPageHideBottomPadding={sessionBackFromSettings}
           />
         </View>
-
         <View style={[styles.page, { width }]}>
-          <SettingsScreen />
+          <SettingsScreen
+            showBackToSession={sessionBackFromSettings}
+            onBackToSession={() => {
+              setSessionBackFromSettings(false);
+              setIsSessionDetailOpen(true);
+              goToIndex(1);
+            }}
+          />
         </View>
+        {/* <View style={[styles.page, { width }]}>
+          <TroubleshootScreen />
+        </View> */}
       </Animated.ScrollView>
 
       {showBottomNav ? (
@@ -154,13 +177,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     alignSelf: 'center',
-    width: '90%',
+    width: '60%',
     maxWidth: 300,
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 18,
-    borderRadius: 40,
+    borderRadius: 44,
     backgroundColor: colorScheme.surface,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.15)',

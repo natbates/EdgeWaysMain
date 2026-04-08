@@ -7,48 +7,35 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0AB551DB569B9B5C10792EBF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		0C80B921A6F3F58F76C31292 /* libPods-EdgewaysAudioML.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-EdgewaysAudioML.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		3C95DB6F2F63F7050003AE40 /* RNTensorflowLiteBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C95DB6E2F63F7050003AE40 /* RNTensorflowLiteBridge.m */; };
-		3C95DB702F63F7050003AE40 /* RNTensorflowLite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C95DB6D2F63F7050003AE40 /* RNTensorflowLite.swift */; };
-		3C95DB762F641C550003AE40 /* speaker_id_embedding_model.tflite in Resources */ = {isa = PBXBuildFile; fileRef = 3C95DB752F641C550003AE40 /* speaker_id_embedding_model.tflite */; };
+		3C04CBF82F71477B00EEC5AA /* RNTensorflowLite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C04CBF52F71477B00EEC5AA /* RNTensorflowLite.swift */; };
+		3C04CBF92F71477B00EEC5AA /* RNTensorflowLiteBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C04CBF62F71477B00EEC5AA /* RNTensorflowLiteBridge.m */; };
+		3C04CBFA2F71477B00EEC5AA /* RNMFCC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C04CBF42F71477B00EEC5AA /* RNMFCC.swift */; };
+		3C04CBFF2F748DC500EEC5AA /* mfcc_constants.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C04CBFE2F748DC500EEC5AA /* mfcc_constants.json */; };
+		3C59AAE52F7D75AF00700C29 /* speaker_id_embedding_model.tflite in Resources */ = {isa = PBXBuildFile; fileRef = 3C59AAE42F7D75AF00700C29 /* speaker_id_embedding_model.tflite */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		C27BD731CF86C866C0089270 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		07CB239AE99841C487451C80 /* MaterialCommunityIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = MaterialCommunityIcons.ttf; path = "../node_modules/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* EdgewaysAudioML.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EdgewaysAudioML.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = EdgewaysAudioML/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = EdgewaysAudioML/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = EdgewaysAudioML/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		233BB674A8D345F3BBBD05DD /* Ionicons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Ionicons.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Ionicons.ttf"; sourceTree = "<group>"; };
-		353FA18D74A94637964C4AEE /* Octicons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Octicons.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Octicons.ttf"; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-EdgewaysAudioML.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-EdgewaysAudioML.debug.xcconfig"; path = "Target Support Files/Pods-EdgewaysAudioML/Pods-EdgewaysAudioML.debug.xcconfig"; sourceTree = "<group>"; };
-		3BFA58524D9E4FD993929852 /* FontAwesome5_Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome5_Regular.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf"; sourceTree = "<group>"; };
-		3C95DB6D2F63F7050003AE40 /* RNTensorflowLite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RNTensorflowLite.swift; sourceTree = "<group>"; };
-		3C95DB6E2F63F7050003AE40 /* RNTensorflowLiteBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNTensorflowLiteBridge.m; sourceTree = "<group>"; };
-		3C95DB752F641C550003AE40 /* speaker_id_embedding_model.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = speaker_id_embedding_model.tflite; sourceTree = "<group>"; };
-		4B013AC0651F41478E530787 /* SimpleLineIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = SimpleLineIcons.ttf; path = "../node_modules/react-native-vector-icons/Fonts/SimpleLineIcons.ttf"; sourceTree = "<group>"; };
-		50A6BEFFDF6C4C11B9078FCB /* Fontisto.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Fontisto.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Fontisto.ttf"; sourceTree = "<group>"; };
-		519C66E7E569494AB227BC59 /* FontAwesome6_Brands.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome6_Brands.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf"; sourceTree = "<group>"; };
+		3C04CBF32F71477B00EEC5AA /* MaterialCommunityIcons.ttf */ = {isa = PBXFileReference; lastKnownFileType = text; path = MaterialCommunityIcons.ttf; sourceTree = "<group>"; };
+		3C04CBF42F71477B00EEC5AA /* RNMFCC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RNMFCC.swift; sourceTree = "<group>"; };
+		3C04CBF52F71477B00EEC5AA /* RNTensorflowLite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RNTensorflowLite.swift; sourceTree = "<group>"; };
+		3C04CBF62F71477B00EEC5AA /* RNTensorflowLiteBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNTensorflowLiteBridge.m; sourceTree = "<group>"; };
+		3C04CBFD2F71477C00EEC5AA /* EdgewaysAudioML-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "EdgewaysAudioML-Bridging-Header.h"; sourceTree = "<group>"; };
+		3C04CBFE2F748DC500EEC5AA /* mfcc_constants.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = mfcc_constants.json; sourceTree = "<group>"; };
+		3C59AAE42F7D75AF00700C29 /* speaker_id_embedding_model.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = speaker_id_embedding_model.tflite; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-EdgewaysAudioML.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-EdgewaysAudioML.release.xcconfig"; path = "Target Support Files/Pods-EdgewaysAudioML/Pods-EdgewaysAudioML.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-EdgewaysAudioML.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-EdgewaysAudioML.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		64A68A11B205470FAC3BB5A3 /* FontAwesome5_Solid.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome5_Solid.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = EdgewaysAudioML/AppDelegate.swift; sourceTree = "<group>"; };
-		78D04D3D029144BCA2BCC754 /* Feather.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Feather.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Feather.ttf"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = EdgewaysAudioML/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		8383E0CB28BC46128632B55D /* FontAwesome5_Brands.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome5_Brands.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf"; sourceTree = "<group>"; };
-		866B9E686F5F4054867F59B1 /* Entypo.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Entypo.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Entypo.ttf"; sourceTree = "<group>"; };
-		8D484D077AE8477DA5CC549A /* FontAwesome6_Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome6_Regular.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf"; sourceTree = "<group>"; };
-		A13440550FB74BA382B3BE74 /* FontAwesome6_Solid.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome6_Solid.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf"; sourceTree = "<group>"; };
-		A142FF9C691744B1AC85ED9C /* AntDesign.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = AntDesign.ttf; path = "../node_modules/react-native-vector-icons/Fonts/AntDesign.ttf"; sourceTree = "<group>"; };
-		A21E05C0459148A79A1BCEA8 /* FontAwesome.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome.ttf"; sourceTree = "<group>"; };
-		BB2383F7A4794721BF1EF0E8 /* MaterialIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = MaterialIcons.ttf; path = "../node_modules/react-native-vector-icons/Fonts/MaterialIcons.ttf"; sourceTree = "<group>"; };
-		CE2A6FF5FD7D40BE9548C56C /* Zocial.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Zocial.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Zocial.ttf"; sourceTree = "<group>"; };
-		D24E1B2B3E0E4DD88C4F5685 /* Foundation.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Foundation.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Foundation.ttf"; sourceTree = "<group>"; };
-		D7652AA8D4A644F2AC3E96DD /* EvilIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = EvilIcons.ttf; path = "../node_modules/react-native-vector-icons/Fonts/EvilIcons.ttf"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -67,14 +54,18 @@
 		13B07FAE1A68108700A75B9A /* EdgewaysAudioML */ = {
 			isa = PBXGroup;
 			children = (
-				3C95DB752F641C550003AE40 /* speaker_id_embedding_model.tflite */,
-				3C95DB6D2F63F7050003AE40 /* RNTensorflowLite.swift */,
-				3C95DB6E2F63F7050003AE40 /* RNTensorflowLiteBridge.m */,
+				3C04CBF32F71477B00EEC5AA /* MaterialCommunityIcons.ttf */,
+				3C04CBF42F71477B00EEC5AA /* RNMFCC.swift */,
+				3C04CBF52F71477B00EEC5AA /* RNTensorflowLite.swift */,
+				3C04CBF62F71477B00EEC5AA /* RNTensorflowLiteBridge.m */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
+				3C04CBFD2F71477C00EEC5AA /* EdgewaysAudioML-Bridging-Header.h */,
+				3C04CBFE2F748DC500EEC5AA /* mfcc_constants.json */,
+				3C59AAE42F7D75AF00700C29 /* speaker_id_embedding_model.tflite */,
 			);
 			name = EdgewaysAudioML;
 			sourceTree = "<group>";
@@ -86,33 +77,6 @@
 				5DCACB8F33CDC322A6C60F78 /* libPods-EdgewaysAudioML.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		442B66E6556246FF826507BB /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				50A6BEFFDF6C4C11B9078FCB /* Fontisto.ttf */,
-				353FA18D74A94637964C4AEE /* Octicons.ttf */,
-				78D04D3D029144BCA2BCC754 /* Feather.ttf */,
-				8D484D077AE8477DA5CC549A /* FontAwesome6_Regular.ttf */,
-				866B9E686F5F4054867F59B1 /* Entypo.ttf */,
-				8383E0CB28BC46128632B55D /* FontAwesome5_Brands.ttf */,
-				07CB239AE99841C487451C80 /* MaterialCommunityIcons.ttf */,
-				A142FF9C691744B1AC85ED9C /* AntDesign.ttf */,
-				D24E1B2B3E0E4DD88C4F5685 /* Foundation.ttf */,
-				233BB674A8D345F3BBBD05DD /* Ionicons.ttf */,
-				64A68A11B205470FAC3BB5A3 /* FontAwesome5_Solid.ttf */,
-				3BFA58524D9E4FD993929852 /* FontAwesome5_Regular.ttf */,
-				A21E05C0459148A79A1BCEA8 /* FontAwesome.ttf */,
-				CE2A6FF5FD7D40BE9548C56C /* Zocial.ttf */,
-				D7652AA8D4A644F2AC3E96DD /* EvilIcons.ttf */,
-				A13440550FB74BA382B3BE74 /* FontAwesome6_Solid.ttf */,
-				4B013AC0651F41478E530787 /* SimpleLineIcons.ttf */,
-				519C66E7E569494AB227BC59 /* FontAwesome6_Brands.ttf */,
-				BB2383F7A4794721BF1EF0E8 /* MaterialIcons.ttf */,
-			);
-			name = Resources;
-			path = "";
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -130,7 +94,6 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
-				442B66E6556246FF826507BB /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -187,7 +150,7 @@
 				LastUpgradeCheck = 1210;
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
-						LastSwiftMigration = 1120;
+						LastSwiftMigration = 2630;
 					};
 				};
 			};
@@ -214,10 +177,11 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3C95DB762F641C550003AE40 /* speaker_id_embedding_model.tflite in Resources */,
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
-				0AB551DB569B9B5C10792EBF /* PrivacyInfo.xcprivacy in Resources */,
+				3C59AAE52F7D75AF00700C29 /* speaker_id_embedding_model.tflite in Resources */,
+				3C04CBFF2F748DC500EEC5AA /* mfcc_constants.json in Resources */,
+				C27BD731CF86C866C0089270 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -248,9 +212,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-EdgewaysAudioML/Pods-EdgewaysAudioML-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-EdgewaysAudioML/Pods-EdgewaysAudioML-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -287,9 +255,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-EdgewaysAudioML/Pods-EdgewaysAudioML-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-EdgewaysAudioML/Pods-EdgewaysAudioML-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -304,8 +276,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
-				3C95DB6F2F63F7050003AE40 /* RNTensorflowLiteBridge.m in Sources */,
-				3C95DB702F63F7050003AE40 /* RNTensorflowLite.swift in Sources */,
+				3C04CBF82F71477B00EEC5AA /* RNTensorflowLite.swift in Sources */,
+				3C04CBF92F71477B00EEC5AA /* RNTensorflowLiteBridge.m in Sources */,
+				3C04CBFA2F71477B00EEC5AA /* RNMFCC.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -333,10 +306,10 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.--edgeways-rfc1034identifier-";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.--edgewaysapp--rfc1034identifier-";
 				PRODUCT_NAME = EdgewaysAudioML;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/EdgewaysAudioML/EdgewaysAudioML-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "EdgewaysAudioML-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -364,10 +337,10 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.--edgeways-rfc1034identifier-";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.--edgewaysapp--rfc1034identifier-";
 				PRODUCT_NAME = EdgewaysAudioML;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/EdgewaysAudioML/EdgewaysAudioML-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "EdgewaysAudioML-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
