@@ -96,7 +96,11 @@ export async function runModelOnWaveform(
   try {
     const mfccResult = await runMFCCOnWaveform(waveform);
     if (mfccResult && mfccResult.mfcc) {
-      console.log('[TFLITE] Using MFCC-based inference path (1, 100, 40, 1)');
+      console.log(
+        '[TFLITE] Using MFCC-based inference path (1,',
+        mfccResult.mfcc.length,
+        ', 40, 1)',
+      );
       const emb = await runModelOnMFCC(mfccResult.mfcc);
       if (emb) {
         return emb;

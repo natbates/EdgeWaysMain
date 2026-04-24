@@ -12,6 +12,7 @@ export type RecordingControlsProps = {
   activeProfileName: string | null;
   activeProfileColor?: string | null;
   activeProfileConfidence?: number | null;
+  cosineThreshold?: number | null;
   onToggleRecording: () => void;
 };
 
@@ -22,6 +23,7 @@ export default function RecordingControls({
   activeProfileName,
   activeProfileColor = null,
   activeProfileConfidence = null,
+  cosineThreshold = null,
   onToggleRecording,
 }: RecordingControlsProps) {
   const levelHeight = Math.max(0, Math.min(1, audioLevelFraction)) * 100;
@@ -58,18 +60,23 @@ export default function RecordingControls({
           />
         </TouchableOpacity>
         <CustomText style={styles.playTime}>{recordTime.slice(3)}</CustomText>
-        <View style={styles.predictionRow}>
-          {activeProfileName ? (
+        {typeof cosineThreshold === 'number' ? (
+          <CustomText style={styles.thresholdText} numberOfLines={1}>
+            {`Cosine threshold: ${cosineThreshold.toFixed(2)}`}
+          </CustomText>
+        ) : null}
+        {activeProfileName ? (
+          <View style={styles.predictionBox} pointerEvents="none">
             <CustomText style={styles.playPrediction} numberOfLines={1}>
               {activeProfileName}
-              {typeof activeProfileConfidence === 'number'
-                ? ` · ${activeProfileConfidence.toFixed(3)}`
-                : ''}
             </CustomText>
-          ) : (
-            <View style={styles.predictionPlaceholder} />
-          )}
-        </View>
+            {typeof activeProfileConfidence === 'number' ? (
+              <CustomText style={styles.confidenceText} numberOfLines={1}>
+                {`Confidence: ${activeProfileConfidence.toFixed(3)}`}
+              </CustomText>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -118,12 +125,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colorScheme.subText,
   },
+  thresholdText: {
+    position: 'absolute',
+    left: 14,
+    bottom: 14,
+    fontSize: 12,
+    color: colorScheme.subText,
+  },
   predictionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
     minHeight: 24,
+  },
+  predictionBox: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    alignItems: 'flex-end',
+  },
+  confidenceText: {
+    marginTop: 2,
+    fontSize: 12,
+    color: colorScheme.subText,
   },
   predictionPlaceholder: {
     width: '100%',

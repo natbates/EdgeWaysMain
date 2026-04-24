@@ -12,13 +12,13 @@ import { colorScheme } from '../constants/colorScheme';
 import HomeScreen from '../screens/HomeScreen';
 import SessionsScreen from '../screens/SessionsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import TroubleshootScreen from '../screens/TroubleshootScreen';
+import HelpScreen from '../screens/HelpScreen';
 
 const PAGES = [
   { key: 'home', title: 'Home', icon: 'home-outline' },
   { key: 'sessions', title: 'Sessions', icon: 'music-circle-outline' },
   { key: 'settings', title: 'Settings', icon: 'cog-outline' },
-  // { key: 'troubleshoot', title: 'Troubleshoot', icon: 'bug-outline' },
+  { key: 'help', title: 'Help', icon: 'help-circle-outline' },
 ];
 
 function HomePageContent() {
@@ -104,15 +104,15 @@ function HomePageContent() {
             }}
           />
         </View>
-        {/* <View style={[styles.page, { width }]}>
-          <TroubleshootScreen />
-        </View> */}
+        <View style={[styles.page, { width }]}>
+          <HelpScreen />
+        </View>
       </Animated.ScrollView>
 
       {showBottomNav ? (
         <View
-          style={[styles.bottomNav, { bottom: bottomNavOffset }]}
-          onLayout={event => setNavWidth(event.nativeEvent.layout.width)}
+          style={styles.bottomNav}
+          onLayout={e => setNavWidth(e.nativeEvent.layout.width)}
         >
           <Animated.View
             style={[

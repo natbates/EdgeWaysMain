@@ -3,6 +3,7 @@
 export type VoiceProfile = {
   name: string;
   embedding: number[];
+  segmentEmbeddings?: number[][];
   /**
    * Optional demo value: percentage of speaking time in a mock session.
    * This is used for UI/visualization purposes only.

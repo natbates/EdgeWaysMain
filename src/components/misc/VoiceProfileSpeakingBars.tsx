@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 
 import { colorScheme } from '@constants/colorScheme';
@@ -19,13 +19,6 @@ export default function VoiceProfileSpeakingBars({
   profiles,
   highlighted,
 }: VoiceProfileSpeakingBarsProps) {
-  useEffect(() => {
-    console.log('[VoiceProfileSpeakingBars] render', {
-      profiles,
-      highlighted,
-    });
-  }, [profiles, highlighted]);
-
   const hasProfiles = profiles.length > 0;
   const isScroll = profiles.length > 3;
 
@@ -33,9 +26,7 @@ export default function VoiceProfileSpeakingBars({
     profiles.map((profile, index) => {
       const barHeight = Math.max(0, Math.min(1, profile.percentage)) * 100;
       const isActive = highlighted === index;
-      const profileKey = `${profile.name}-${profile.timeSec ?? '0'}-${
-        profile.color ?? 'none'
-      }-${index}`;
+      const profileKey = `${profile.name}-${index}`;
 
       return (
         <View
@@ -155,10 +146,6 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 8,
     backgroundColor: colorScheme.accent,
-  },
-  activeBar: {
-    borderWidth: 2,
-    borderColor: colorScheme.accent,
   },
   label: {
     marginTop: 6,

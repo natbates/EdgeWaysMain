@@ -1,9 +1,9 @@
 // src/constants/mlModel.ts
 
 export const SAMPLE_RATE = 16000; // Hz
-export const WINDOW_LENGTH_SAMPLES = 16000; // 1 second of audio at 16kHz (match training pipeline)
-export const WINDOW_DURATION_SEC = WINDOW_LENGTH_SAMPLES / SAMPLE_RATE; // 1.0s window
-export const NUM_FRAMES = 100; // expected MFCC times steps for 1 second of 16 kHz input
+export const WINDOW_LENGTH_SAMPLES = 32000; // 2 seconds of audio at 16kHz (match training pipeline)
+export const WINDOW_DURATION_SEC = WINDOW_LENGTH_SAMPLES / SAMPLE_RATE; // 2.0s window
+export const NUM_FRAMES = 200; // expected MFCC times steps for 2 seconds of 16 kHz input
 export const NUM_MFCC = 40;
 export const MEL_BANDS = 40;
 export const INPUT_SHAPE = [1, NUM_FRAMES, NUM_MFCC, 1];
@@ -11,6 +11,12 @@ export const WAVEFORM_SHAPE = [1, WINDOW_LENGTH_SAMPLES];
 // Updated to reflect new TF Lite embedding output length.
 export const EMBEDDING_DIM = 128;
 export const COSINE_MIN_CONFIDENCE = 0.72; // align with Python training config
+
+// TSNE / cluster visualization constants
+export const TSNE_OUTLIER_MIN_SEGMENTS = 3;
+export const TSNE_OUTLIER_SIMILARITY_MARGIN = 0.14;
+export const TSNE_PERPLEXITY = 18;
+export const TSNE_ITERATIONS = 250; // sklearn TSNE requires n_iter >= 250
 
 // Voice activity detection (VAD) settings
 // If RMS is below this, treat as silence and skip MFCC/model inference.

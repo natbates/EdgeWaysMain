@@ -10,6 +10,7 @@ import { Row } from '@components/layout';
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
+  BottomSheetModalProvider,
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import AudioRecord from 'react-native-audio-record';
@@ -20,6 +21,7 @@ import { colorScheme } from '@constants/colorScheme';
 import { profileColors } from '@constants/profileColors';
 import { runModelOnMFCC } from '@utils/mlModelUtils';
 import { runMFCCOnWaveform } from '@utils/mfccUtils';
+import { isSpeech } from '@utils/vad';
 // import { extractMFCC } from '@utils/mfccUtils'; (removed Meyda dependency)
 import { decodePcm16Base64ToFloat32 } from '@utils/audioUtils';
 import {
@@ -58,6 +60,8 @@ export default function VoiceProfileModal({
   const [settings, setSettings] = useState<Settings | null>(null);
   const effectiveSampleRateRef = React.useRef<number>(16000);
   const stopRecordingRef = React.useRef<() => void>(() => {});
+  const nextProfileColor =
+    profileColors[profiles.length % profileColors.length];
   const bottomSheetModalRef = React.useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ['55%', '100%'], []);
 
@@ -190,10 +194,20 @@ export default function VoiceProfileModal({
       for (let i = 0; i < segmentCount; i += 1) {
         setProgress(`Processing segment ${i + 1} / ${segmentCount}`);
         const segment = flat.subarray(i * segmentSize, (i + 1) * segmentSize);
+        if (!isSpeech(segment)) {
+          continue;
+        }
         const mfccResult = await runMFCCOnWaveform(segment);
         if (!mfccResult) continue;
         const emb = await runModelOnMFCC(mfccResult.mfcc);
-        if (emb) embeddings.push(emb);
+        if (emb) {
+          const norm = Math.sqrt(emb.reduce((sum, v) => sum + v * v, 0));
+          if (norm > 0) {
+            embeddings.push(emb.map(v => v / norm));
+          } else {
+            embeddings.push(emb);
+          }
+        }
       }
 
       if (!embeddings.length) {
@@ -221,15 +235,21 @@ export default function VoiceProfileModal({
         }
       }
 
+      const profileData = {
+        name: profileName,
+        embedding: avg,
+        segmentEmbeddings: embeddings,
+      };
+
       if (reRecordTarget && onUpdate) {
-        onUpdate({ name: profileName, embedding: avg });
+        onUpdate(profileData);
         setReRecordTarget(null);
       } else {
         if (reRecordTarget) {
           onDelete(reRecordTarget);
           setReRecordTarget(null);
         }
-        onAdd({ name: profileName, embedding: avg });
+        onAdd(profileData);
       }
       setProgress('Training complete');
       setName('');
@@ -345,70 +365,83 @@ export default function VoiceProfileModal({
   }, [profiles, showEmbeddingPreview, onDelete, isRecording]);
 
   return (
-    <BottomSheetModal
-      ref={bottomSheetModalRef}
-      index={0}
-      snapPoints={snapPoints}
-      enablePanDownToClose
-      enableHandlePanningGesture
-      enableContentPanningGesture
-      enableDismissOnClose
-      onChange={handleSheetChange}
-      onDismiss={handleDismiss}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={styles.bottomSheetBackground}
-      handleIndicatorStyle={styles.handleIndicator}
-    >
-      <BottomSheetScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+    <BottomSheetModalProvider>
+      <BottomSheetModal
+        ref={bottomSheetModalRef}
+        index={0}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        enableHandlePanningGesture
+        enableContentPanningGesture
+        enableDismissOnClose
+        onChange={handleSheetChange}
+        onDismiss={handleDismiss}
+        backdropComponent={renderBackdrop}
+        style={styles.bottomSheet}
+        backgroundStyle={styles.bottomSheetBackground}
+        handleIndicatorStyle={styles.handleIndicator}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View>
-            <CustomText style={styles.title}>Voice Profiles</CustomText>
+        <BottomSheetScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View>
+              <CustomText style={styles.title}>Voice Profiles</CustomText>
 
-            <Row style={styles.row}>
-              <CustomInput
-                style={styles.input}
-                placeholder="Profile name"
-                value={name}
-                onChangeText={setName}
-                editable={!isRecording}
-              />
-              <CustomButton
-                title={isRecording ? 'Cancel' : 'Add'}
-                onPress={
-                  isRecording ? () => stopRecordingRef.current() : handleCreate
-                }
-                disabled={!canCreate && !isRecording}
-                style={styles.addButton}
-              />
-            </Row>
-
-            {isRecording ? (
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    { width: `${smoothRecordProgress * 100}%` },
-                  ]}
+              <Row style={styles.row}>
+                <CustomInput
+                  style={styles.input}
+                  placeholder="Profile name"
+                  value={name}
+                  onChangeText={setName}
+                  editable={!isRecording}
                 />
-              </View>
-            ) : null}
+                <CustomButton
+                  title={isRecording ? 'Cancel' : 'Add'}
+                  onPress={
+                    isRecording
+                      ? () => stopRecordingRef.current()
+                      : handleCreate
+                  }
+                  disabled={!canCreate && !isRecording}
+                  style={styles.addButton}
+                />
+              </Row>
 
-            {progress ? (
-              <CustomText style={styles.debug}>{progress}</CustomText>
-            ) : null}
+              {isRecording ? (
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      {
+                        width: `${smoothRecordProgress * 100}%`,
+                        backgroundColor: nextProfileColor,
+                      },
+                    ]}
+                  />
+                </View>
+              ) : null}
 
-            <View style={styles.list}>{previewRows}</View>
-          </View>
-        </TouchableWithoutFeedback>
-      </BottomSheetScrollView>
-    </BottomSheetModal>
+              {progress ? (
+                <CustomText style={styles.debug}>{progress}</CustomText>
+              ) : null}
+
+              <View style={styles.list}>{previewRows}</View>
+            </View>
+          </TouchableWithoutFeedback>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
+    </BottomSheetModalProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  bottomSheet: {
+    position: 'absolute',
+    zIndex: 9999,
+    elevation: 9999,
+  },
   bottomSheetBackground: {
     backgroundColor: colorScheme.background,
   },

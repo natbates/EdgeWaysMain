@@ -13,7 +13,7 @@
 		3C04CBF92F71477B00EEC5AA /* RNTensorflowLiteBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C04CBF62F71477B00EEC5AA /* RNTensorflowLiteBridge.m */; };
 		3C04CBFA2F71477B00EEC5AA /* RNMFCC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C04CBF42F71477B00EEC5AA /* RNMFCC.swift */; };
 		3C04CBFF2F748DC500EEC5AA /* mfcc_constants.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C04CBFE2F748DC500EEC5AA /* mfcc_constants.json */; };
-		3C59AAE52F7D75AF00700C29 /* speaker_id_embedding_model.tflite in Resources */ = {isa = PBXBuildFile; fileRef = 3C59AAE42F7D75AF00700C29 /* speaker_id_embedding_model.tflite */; };
+		3C59AAF12F9A658E00700C29 /* speaker_id_embedding_model.tflite in Resources */ = {isa = PBXBuildFile; fileRef = 3C59AAF02F9A658E00700C29 /* speaker_id_embedding_model.tflite */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		C27BD731CF86C866C0089270 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
@@ -31,7 +31,7 @@
 		3C04CBF62F71477B00EEC5AA /* RNTensorflowLiteBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNTensorflowLiteBridge.m; sourceTree = "<group>"; };
 		3C04CBFD2F71477C00EEC5AA /* EdgewaysAudioML-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "EdgewaysAudioML-Bridging-Header.h"; sourceTree = "<group>"; };
 		3C04CBFE2F748DC500EEC5AA /* mfcc_constants.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = mfcc_constants.json; sourceTree = "<group>"; };
-		3C59AAE42F7D75AF00700C29 /* speaker_id_embedding_model.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = speaker_id_embedding_model.tflite; sourceTree = "<group>"; };
+		3C59AAF02F9A658E00700C29 /* speaker_id_embedding_model.tflite */ = {isa = PBXFileReference; lastKnownFileType = file; path = speaker_id_embedding_model.tflite; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-EdgewaysAudioML.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-EdgewaysAudioML.release.xcconfig"; path = "Target Support Files/Pods-EdgewaysAudioML/Pods-EdgewaysAudioML.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-EdgewaysAudioML.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-EdgewaysAudioML.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = EdgewaysAudioML/AppDelegate.swift; sourceTree = "<group>"; };
@@ -65,7 +65,7 @@
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
 				3C04CBFD2F71477C00EEC5AA /* EdgewaysAudioML-Bridging-Header.h */,
 				3C04CBFE2F748DC500EEC5AA /* mfcc_constants.json */,
-				3C59AAE42F7D75AF00700C29 /* speaker_id_embedding_model.tflite */,
+				3C59AAF02F9A658E00700C29 /* speaker_id_embedding_model.tflite */,
 			);
 			name = EdgewaysAudioML;
 			sourceTree = "<group>";
@@ -179,7 +179,7 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
-				3C59AAE52F7D75AF00700C29 /* speaker_id_embedding_model.tflite in Resources */,
+				3C59AAF12F9A658E00700C29 /* speaker_id_embedding_model.tflite in Resources */,
 				3C04CBFF2F748DC500EEC5AA /* mfcc_constants.json in Resources */,
 				C27BD731CF86C866C0089270 /* PrivacyInfo.xcprivacy in Resources */,
 			);

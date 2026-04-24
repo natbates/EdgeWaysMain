@@ -87,7 +87,6 @@ export default function SessionPage({
   const [profilePrediction, setProfilePrediction] = useState<{
     name: string;
     score: number;
-    profileIndex: number;
   } | null>(null);
 
   const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
@@ -105,6 +104,7 @@ export default function SessionPage({
 
   const [debug, setDebug] = useState('');
   const [mfccTick, setMfccTick] = useState(0);
+  const mfccTickRef = useRef(0);
   const [mfccLastTime, setMfccLastTime] = useState<string>('');
   const [speakingTime, setSpeakingTime] = useState<Record<string, number>>({});
   const [totalSpeakingTime, setTotalSpeakingTime] = useState(0);
@@ -112,11 +112,18 @@ export default function SessionPage({
   const [settings, setSettings] = useState<
     import('../utils/settings').Settings | null
   >(null);
+  const settingsRef = useRef<typeof settings>(settings);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   const vadRmsSlider = settings?.vadRmsThreshold ?? 5;
   const vadZcrSlider = settings?.vadZcrThreshold ?? 5;
   const vadRmsThreshold = mapRmsSliderToThreshold(vadRmsSlider);
   const vadZcrThreshold = mapZcrSliderToThreshold(vadZcrSlider);
+  const cosineThreshold =
+    settings?.cosineMinConfidence ?? COSINE_MIN_CONFIDENCE;
 
   // Default to no smoothing until settings are loaded.
   const vadRef = useRef(createVad({ smoothingFrames: 0 }));
@@ -144,7 +151,9 @@ export default function SessionPage({
   const currentSessionRef = useRef<Session>(sanitizeSession(session));
 
   const activeProfileName = profilePrediction?.name ?? null;
-  const activeProfileIndex = profilePrediction?.profileIndex ?? -1;
+  const activeProfileIndex = currentSession.voiceProfiles.findIndex(
+    p => p.name === activeProfileName,
+  );
   const hasActiveProfile = activeProfileIndex >= 0;
   const activeProfileColor = hasActiveProfile
     ? profileColors[activeProfileIndex % profileColors.length]
@@ -160,19 +169,6 @@ export default function SessionPage({
   const activeProfileBg = hasActiveProfile
     ? getRgba(activeProfileColor, 0.12)
     : 'transparent';
-
-  const timelineProfileSummaries = React.useMemo(
-    () =>
-      currentSession.voiceProfiles.map((p, idx) => ({
-        name: p.name,
-        percentage: totalSpeakingTime
-          ? (speakingTime[p.name] ?? 0) / totalSpeakingTime
-          : 0,
-        timeSec: speakingTime[p.name] ?? 0,
-        color: profileColors[idx % profileColors.length],
-      })),
-    [currentSession.voiceProfiles, speakingTime, totalSpeakingTime],
-  );
 
   const audioBufferRef = useRef<{
     buffer: Float32Array;
@@ -218,28 +214,6 @@ export default function SessionPage({
   const vadStateRef = useRef({
     active: false,
   });
-  const lastSpeechAtRef = useRef<number | null>(null);
-
-  const areTimelinesEqual = (
-    a: import('../types').TimelineEntry[] | undefined,
-    b: import('../types').TimelineEntry[] | undefined,
-  ) => {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i += 1) {
-      const aEntry = a[i];
-      const bEntry = b[i];
-      if (
-        aEntry.profileName !== bEntry.profileName ||
-        aEntry.startTimeSec !== bEntry.startTimeSec ||
-        aEntry.durationSec !== bEntry.durationSec
-      ) {
-        return false;
-      }
-    }
-    return true;
-  };
 
   const updateSpeakingPercentages = (
     session: Session,
@@ -272,31 +246,31 @@ export default function SessionPage({
     setTotalSpeakingTime(total || 1);
   };
 
-  const initialSessionSyncRef = useRef(true);
-
   useEffect(() => {
     const normalized = sanitizeSession(session);
 
+    // While recording, keep the local timeline as source of truth and do not
+    // accept incoming parent timeline updates. This prevents the "flash then disappear" bug.
     if (isRecording) {
+      const recordingSession = {
+        ...currentSessionRef.current,
+        ...normalized,
+        timeline: localTimeline,
+      };
+      setCurrentSession(recordingSession);
+      currentSessionRef.current = recordingSession;
+      updateSpeakingPercentages(recordingSession, localTimeline);
+      setRecordTime(formatTime(normalized.recordedTimeSec ?? 0));
       return;
     }
 
+    // Not recording: prefer the longer timeline (parent vs local) to avoid
+    // stale parent timeline overwriting the current recording results.
     const parentTimeline = normalized.timeline ?? [];
     const mergedTimeline =
       parentTimeline.length >= localTimeline.length
         ? parentTimeline
         : localTimeline;
-
-    const shouldUpdateSession =
-      normalized.recordedTimeSec !== currentSession.recordedTimeSec ||
-      !areTimelinesEqual(mergedTimeline, localTimeline) ||
-      !areTimelinesEqual(mergedTimeline, normalized.timeline);
-
-    if (!shouldUpdateSession && !initialSessionSyncRef.current) {
-      return;
-    }
-
-    initialSessionSyncRef.current = false;
 
     const sessionWithMergedTimeline = {
       ...normalized,
@@ -304,36 +278,11 @@ export default function SessionPage({
     };
 
     setCurrentSession(sessionWithMergedTimeline);
-    if (!areTimelinesEqual(mergedTimeline, localTimeline)) {
-      setLocalTimeline(mergedTimeline);
-    }
+    setLocalTimeline(mergedTimeline);
     currentSessionRef.current = sessionWithMergedTimeline;
     updateSpeakingPercentages(sessionWithMergedTimeline, mergedTimeline);
     setRecordTime(formatTime(normalized.recordedTimeSec ?? 0));
-  }, [session, isRecording]);
-
-  useEffect(() => {
-    if (!isRecording) return;
-
-    const normalized = sanitizeSession(session);
-    const recordingSession = {
-      ...currentSessionRef.current,
-      ...normalized,
-      timeline: localTimeline,
-    };
-
-    if (
-      recordingSession.recordedTimeSec === currentSession.recordedTimeSec &&
-      areTimelinesEqual(recordingSession.timeline, currentSession.timeline)
-    ) {
-      return;
-    }
-
-    setCurrentSession(recordingSession);
-    currentSessionRef.current = recordingSession;
-    updateSpeakingPercentages(recordingSession, localTimeline);
-    setRecordTime(formatTime(normalized.recordedTimeSec ?? 0));
-  }, [isRecording, localTimeline, session]);
+  }, [session, isRecording, localTimeline]);
 
   useEffect(() => {
     console.log('[SessionPage] speakingTime updated', {
@@ -491,16 +440,6 @@ export default function SessionPage({
           }
         }
 
-        // Debug visibility for chunk size and buffer progress
-        // console.log(
-        //   '[VAD] chunk',
-        //   chunkCountRef.current,
-        //   'len',
-        //   float32.length,
-        //   'rms',
-        //   rms,
-        // );
-
         const buf = state.buffer;
         let writeIndex = state.writeIndex;
 
@@ -541,7 +480,6 @@ export default function SessionPage({
     });
 
     AudioRecord.start();
-    lastSpeechAtRef.current = null;
     setIsRecording(true);
 
     /* MODEL LOOP */
@@ -582,8 +520,9 @@ export default function SessionPage({
       setLastRms(rms);
       setLastZcr(zcr);
 
-      const vadRmsSlider = settings?.vadRmsThreshold ?? 5;
-      const vadZcrSlider = settings?.vadZcrThreshold ?? 5;
+      const currentSettings = settingsRef.current;
+      const vadRmsSlider = currentSettings?.vadRmsThreshold ?? 5;
+      const vadZcrSlider = currentSettings?.vadZcrThreshold ?? 5;
       const vadRmsThreshold = mapRmsSliderToThreshold(vadRmsSlider);
       const vadZcrThreshold = mapZcrSliderToThreshold(vadZcrSlider);
       const passRms = rms >= vadRmsThreshold;
@@ -596,6 +535,7 @@ export default function SessionPage({
       // transient noise/silence before dropping model inference.
       const vad = vadRef.current;
       const speech = vad.isSpeech(out);
+      const smoothTicks = currentSettings?.vadSmoothTicks ?? 0;
 
       // Keep this diagnostic mapping as before for UI and debugging.
       if (!speech) {
@@ -603,16 +543,6 @@ export default function SessionPage({
       } else {
         setVadStatus('speaking');
       }
-
-      // console.log('[VAD]', {
-      //   rms: rms.toFixed(5),
-      //   zcr: zcr.toFixed(4),
-      //   speech,
-      //   passRms,
-      //   passZcr,
-      //   vadRmsThreshold: vadRmsThreshold.toFixed(6),
-      //   vadZcrThreshold: vadZcrThreshold.toFixed(6),
-      // });
 
       const nowTime = new Date().toLocaleTimeString();
 
@@ -624,37 +554,37 @@ export default function SessionPage({
       }
 
       if (speech) {
-        lastSpeechAtRef.current = Date.now();
+        mfccTickRef.current = smoothTicks;
+        setMfccTick(smoothTicks);
       }
 
       if (!speech && !state.filled) {
         setDebug(
           `Buffering audio (${state.samplesWritten}/${state.windowLengthSamples} samples) — waiting to fill before MFCC extraction. (last chunk: ${msSinceLastChunk}ms ago)`,
         );
-        const recentSpeech =
-          lastSpeechAtRef.current != null &&
-          Date.now() - lastSpeechAtRef.current < 1500;
-        if (!recentSpeech) {
-          setProfilePrediction(null);
-          setProfileScores([]);
-          setOutput(null);
-          setLastInferenceOk(false);
-        }
+        setProfilePrediction(null);
+        setProfileScores([]);
+        setOutput(null);
+        setLastInferenceOk(false);
         return;
       }
 
-      if (!speech) {
+      if (!speech && mfccTickRef.current <= 0) {
         setDebug(`VAD: silence (rms=${rms.toFixed(5)} zcr=${zcr.toFixed(4)})`);
-        const recentSpeech =
-          lastSpeechAtRef.current != null &&
-          Date.now() - lastSpeechAtRef.current < 1500;
-        if (!recentSpeech) {
-          setProfilePrediction(null);
-          setProfileScores([]);
-          setOutput(null);
-          setLastInferenceOk(false);
-        }
+        setProfilePrediction(null);
+        setProfileScores([]);
+        setOutput(null);
+        setLastInferenceOk(false);
         return;
+      }
+
+      if (!speech && mfccTickRef.current > 0) {
+        setDebug(
+          `VAD: silence holdoff (${mfccTickRef.current} ticks remaining)`,
+        );
+        const nextTick = Math.max(0, mfccTickRef.current - 1);
+        mfccTickRef.current = nextTick;
+        setMfccTick(nextTick);
       }
 
       if (!state.filled) {
@@ -663,7 +593,9 @@ export default function SessionPage({
         );
       }
 
-      setDebug(`VAD: speaking (rms=${rms.toFixed(5)} zcr=${zcr.toFixed(4)})`);
+      if (speech) {
+        setDebug(`VAD: speaking (rms=${rms.toFixed(5)} zcr=${zcr.toFixed(4)})`);
+      }
 
       // Run model on raw waveform (no Meyda/MFCC in JS)
       // Extract MFCCs and run model
@@ -716,19 +648,20 @@ export default function SessionPage({
         setLastInferenceError(ok ? null : 'Model returned null output');
         const session = currentSessionRef.current;
         if (ok && session.voiceProfiles.length) {
-          const confidenceThreshold =
-            settings?.cosineMinConfidence ?? COSINE_MIN_CONFIDENCE;
+          const currentSettings = settingsRef.current;
+          const cosineThreshold =
+            currentSettings?.cosineMinConfidence ?? COSINE_MIN_CONFIDENCE;
           const prediction = scoreVoiceProfiles(
             emb as number[],
             session.voiceProfiles,
-            confidenceThreshold,
+            cosineThreshold,
           );
           setProfileScores(prediction.scores);
           setProfilePrediction(prediction.bestMatch);
           console.log('[SessionPage] prediction', {
             bestMatch: prediction.bestMatch,
             scores: prediction.scores,
-            confidenceThreshold,
+            confidenceThreshold: cosineThreshold,
           });
           if (!prediction.bestMatch) {
             console.warn(
@@ -777,7 +710,6 @@ export default function SessionPage({
       await AudioRecord.stop();
 
       setIsRecording(false);
-      lastSpeechAtRef.current = null;
       setAudioLevel(0);
 
       const finalSession = {
@@ -849,11 +781,13 @@ export default function SessionPage({
     };
   }, []);
 
-  /* ---------------------------------- */
-  /* UI */
-
   return (
-    <Column style={[styles.container]}>
+    <Column
+      style={[
+        styles.container,
+        { paddingBottom: insets.bottom + (hideBottomPadding ? 0 : 140) },
+      ]}
+    >
       <CustomHeader
         title={currentSession.name}
         leftIcon="chevron-left"
@@ -870,238 +804,249 @@ export default function SessionPage({
       />
 
       <View style={styles.audioDemoContainer}>
-        <View style={styles.audioContent}>
-          <RecordingControls
-            isRecording={isRecording}
-            recordTime={recordTime}
-            audioLevelFraction={audioLevelFraction}
-            activeProfileName={profilePrediction?.name ?? null}
-            activeProfileColor={hasActiveProfile ? activeProfileColor : null}
-            activeProfileConfidence={profilePrediction?.score ?? null}
-            onToggleRecording={isRecording ? onStopRecord : onStartRecord}
-          />
+        <RecordingControls
+          isRecording={isRecording}
+          recordTime={recordTime}
+          audioLevelFraction={audioLevelFraction}
+          activeProfileName={profilePrediction?.name ?? null}
+          activeProfileColor={activeProfileColor}
+          activeProfileConfidence={profilePrediction?.score ?? null}
+          cosineThreshold={cosineThreshold}
+          onToggleRecording={isRecording ? onStopRecord : onStartRecord}
+        />
 
-          {!__DEV__ && (
-            <View style={styles.mainContent}>
-              <VoiceSessionTimeline
-                timeline={localTimeline}
-                voiceProfiles={currentSession.voiceProfiles || []}
-                totalRecordedTimeSec={currentSession.recordedTimeSec || 0}
-                onInteractionStart={onChildHorizontalScrollStart}
-                onInteractionEnd={onChildHorizontalScrollEnd}
-              />
-
-              <View style={[styles.profileBarsWrapper]}>
-                <VoiceProfileSpeakingBars
-                  profiles={timelineProfileSummaries}
-                  highlighted={profilePrediction?.profileIndex ?? null}
-                />
-              </View>
-            </View>
-          )}
-
-          <View style={styles.bottomButtonSpacer}>
-            <CustomButton
-              title="Add Voice Profile"
-              style={styles.addVoiceProfileButton}
-              onPress={() => {
-                if (isRecording) {
-                  onStopRecord();
-                }
-                setIsProfileModalVisible(true);
-              }}
+        {!__DEV__ && (
+          <>
+            <VoiceSessionTimeline
+              timeline={localTimeline}
+              voiceProfiles={currentSession.voiceProfiles || []}
+              totalRecordedTimeSec={currentSession.recordedTimeSec || 0}
+              onInteractionStart={onChildHorizontalScrollStart}
+              onInteractionEnd={onChildHorizontalScrollEnd}
             />
-          </View>
 
-          <VoiceProfileModal
-            visible={isProfileModalVisible}
-            onClose={() => setIsProfileModalVisible(false)}
-            profiles={currentSession.voiceProfiles}
-            showEmbeddingPreview={__DEV__}
-            onAdd={profile => {
-              const updatedSession = {
-                ...currentSession,
-                voiceProfiles: [...currentSession.voiceProfiles, profile],
-              };
-              persistSession(updatedSession);
-              setIsProfileModalVisible(false);
-            }}
-            onUpdate={profile => {
-              const updatedSession = {
-                ...currentSession,
-                voiceProfiles: currentSession.voiceProfiles.map(p =>
-                  p.name === profile.name
-                    ? { ...p, embedding: profile.embedding }
-                    : p,
-                ),
-              };
-              persistSession(updatedSession);
-              setIsProfileModalVisible(false);
-            }}
-            onDelete={name => {
-              const updatedSession = {
-                ...currentSession,
-                voiceProfiles: currentSession.voiceProfiles.filter(
-                  p => p.name !== name,
-                ),
-              };
-              persistSession(updatedSession);
-            }}
-          />
+            <VoiceProfileSpeakingBars
+              profiles={currentSession.voiceProfiles.map((p, idx) => ({
+                name: p.name,
+                percentage: totalSpeakingTime
+                  ? (speakingTime[p.name] ?? 0) / totalSpeakingTime
+                  : 0,
+                timeSec: speakingTime[p.name] ?? 0,
+                color: profileColors[idx % profileColors.length],
+              }))}
+              highlighted={activeProfileIndex >= 0 ? activeProfileIndex : null}
+            />
+          </>
+        )}
 
-          {__DEV__ && (
-            <>
-              <View style={{ marginTop: 12 }}>
-                {output ? (
-                  <>
-                    <CustomText style={styles.output}>
-                      Model output (len {output.length}):{' '}
-                      {output
-                        .slice(0, 5)
-                        .map(v => v.toFixed(3))
-                        .join(', ')}
-                      {output.length > 5 ? ' ...' : ''}
-                    </CustomText>
-                    <CustomText style={styles.debug}>
-                      Full output length: {output.length} (first 10 shown)
-                    </CustomText>
-                    <CustomText style={styles.debug}>
-                      {JSON.stringify(output.slice(0, 10))}
-                    </CustomText>
-                  </>
-                ) : (
-                  <CustomText style={styles.value}>
-                    No model output yet
+        <CustomButton
+          title="Add Voice Profile"
+          style={styles.addVoiceProfileButton}
+          onPress={() => {
+            if (isRecording) {
+              onStopRecord();
+            }
+            setIsProfileModalVisible(true);
+          }}
+        />
+
+        <VoiceProfileModal
+          visible={isProfileModalVisible}
+          onClose={() => setIsProfileModalVisible(false)}
+          profiles={currentSession.voiceProfiles}
+          showEmbeddingPreview={__DEV__}
+          onAdd={profile => {
+            const updatedSession = {
+              ...currentSession,
+              voiceProfiles: [...currentSession.voiceProfiles, profile],
+            };
+            persistSession(updatedSession);
+            setIsProfileModalVisible(false);
+          }}
+          onUpdate={profile => {
+            const updatedSession = {
+              ...currentSession,
+              voiceProfiles: currentSession.voiceProfiles.map(p =>
+                p.name === profile.name
+                  ? { ...p, embedding: profile.embedding }
+                  : p,
+              ),
+            };
+            persistSession(updatedSession);
+            setIsProfileModalVisible(false);
+          }}
+          onDelete={name => {
+            const updatedSession = {
+              ...currentSession,
+              voiceProfiles: currentSession.voiceProfiles.filter(
+                p => p.name !== name,
+              ),
+            };
+            persistSession(updatedSession);
+          }}
+        />
+
+        {__DEV__ && (
+          <>
+            <View style={{ marginTop: 12 }}>
+              {output ? (
+                <>
+                  <CustomText style={styles.output}>
+                    Model output (len {output.length}):{' '}
+                    {output
+                      .slice(0, 5)
+                      .map(v => v.toFixed(3))
+                      .join(', ')}
+                    {output.length > 5 ? ' ...' : ''}
                   </CustomText>
-                )}
-              </View>
-
-              <View style={{ marginTop: 4 }}>
-                <CustomText style={styles.debug}>
-                  Best match:{' '}
-                  {profilePrediction
-                    ? `${
-                        profilePrediction.name
-                      } (${profilePrediction.score.toFixed(3)})`
-                    : 'None'}
-                </CustomText>
-                <CustomText style={styles.debug}>Similarity scores:</CustomText>
-                {profileScores.length > 0 ? (
-                  profileScores.map(profile => (
-                    <CustomText style={styles.debug} key={profile.name}>
-                      {profile.name}: {profile.score.toFixed(3)}
-                    </CustomText>
-                  ))
-                ) : (
-                  <CustomText style={styles.value}>
-                    No profile scores yet
+                  <CustomText style={styles.debug}>
+                    Full output length: {output.length} (first 10 shown)
                   </CustomText>
-                )}
-              </View>
-            </>
-          )}
-
-          {__DEV__ && currentSession.voiceProfiles.length > 0 && (
-            <View style={{ marginTop: 8 }}>
-              <CustomText style={styles.debug}>
-                Voice profile embeddings (preview):
-              </CustomText>
-              {currentSession.voiceProfiles.map(profile => (
-                <CustomText style={styles.debug} key={profile.name}>
-                  {profile.name}: [
-                  {profile.embedding
-                    .slice(0, 10)
-                    .map(v => v.toFixed(3))
-                    .join(', ')}
-                  {profile.embedding.length > 10 ? ' ...' : ''}]
-                </CustomText>
-              ))}
-            </View>
-          )}
-
-          {__DEV__ && mfccFrames.length > 0 && (
-            <View style={{ marginTop: 8 }}>
-              <CustomText style={styles.debug}>
-                Recent MFCC frame 0 (first 10 coeffs):
-              </CustomText>
-              <CustomText style={styles.debug}>
-                [
-                {mfccFrames[0]
-                  .slice(0, 10)
-                  .map(v => v.toFixed(2))
-                  .join(', ')}
-                ]
-              </CustomText>
-              <CustomText style={styles.debug}>
-                Frame count: {mfccFrames.length}, coeffs/frame:{' '}
-                {mfccFrames[0].length}
-              </CustomText>
-            </View>
-          )}
-
-          {__DEV__ && (
-            <>
-              <CustomText style={styles.debug}>{debug}</CustomText>
-              <CustomText style={styles.debug}>
-                Effective sample rate: {effectiveSampleRate.toFixed(1)} Hz
-              </CustomText>
-              <CustomText style={styles.debug}>
-                Effective window length: {effectiveWindowLength} samples
-              </CustomText>
-              {lastInferenceTime ? (
-                <CustomText
-                  style={styles.debug}
-                >{`Last inference: ${lastInferenceTime} (${
-                  lastInferenceOk ? 'OK' : 'no output'
-                })`}</CustomText>
-              ) : null}
-              {debug.startsWith('Buffering audio') && (
-                <CustomText
-                  style={[styles.debug, { color: colorScheme.warning }]}
-                >
-                  Collecting enough audio for MFCC (normal while recording)...
+                  <CustomText style={styles.debug}>
+                    {JSON.stringify(output.slice(0, 10))}
+                  </CustomText>
+                </>
+              ) : (
+                <CustomText style={styles.value}>
+                  No model output yet
                 </CustomText>
               )}
+            </View>
+
+            <View style={{ marginTop: 4 }}>
               <CustomText style={styles.debug}>
-                MFCC Timer Tick: {mfccTick} | Last: {mfccLastTime}
+                Best match:{' '}
+                {profilePrediction
+                  ? `${
+                      profilePrediction.name
+                    } (${profilePrediction.score.toFixed(3)})`
+                  : 'None'}
               </CustomText>
-              <CustomText style={styles.debug}>
-                VAD: {vadStatus} {vadStatusTime ? `(@ ${vadStatusTime})` : ''}
-              </CustomText>
-              <CustomText style={styles.debug}>
-                RMS: {lastRms?.toFixed(5) ?? 'n/a'} | ZCR:{' '}
-                {lastZcr?.toFixed(5) ?? 'n/a'}
-              </CustomText>
-              <CustomText style={styles.debug}>
-                {`VAD thresholds: RMS >= ${vadRmsThreshold.toFixed(
-                  6,
-                )} (slider ${vadRmsSlider}) | ZCR < ${vadZcrThreshold.toFixed(
-                  6,
-                )} (slider ${vadZcrSlider})`}
-              </CustomText>
-              <CustomText style={styles.debug}>
-                {`RMS pass: ${
-                  lastPassRms == null ? 'n/a' : lastPassRms ? 'YES' : 'NO'
-                } | ZCR pass: ${
-                  lastPassZcr == null ? 'n/a' : lastPassZcr ? 'YES' : 'NO'
-                }`}
-              </CustomText>
-              {lastInferenceTime ? (
-                <CustomText style={styles.debug}>
-                  Last inference: {lastInferenceTime} (
-                  {lastInferenceOk ? 'ok' : 'failed'})
+              <CustomText style={styles.debug}>Similarity scores:</CustomText>
+              {profileScores.length > 0 ? (
+                profileScores.map(profile => (
+                  <CustomText style={styles.debug} key={profile.name}>
+                    {profile.name}: {profile.score.toFixed(3)}
+                  </CustomText>
+                ))
+              ) : (
+                <CustomText style={styles.value}>
+                  No profile scores yet
                 </CustomText>
-              ) : null}
-              {lastInferenceError ? (
-                <CustomText
-                  style={[styles.debug, { color: colorScheme.error }]}
-                >
-                  Last inference error: {lastInferenceError}
-                </CustomText>
-              ) : null}
-            </>
-          )}
-        </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {__DEV__ && currentSession.voiceProfiles.length > 0 && (
+          <View style={{ marginTop: 8 }}>
+            <CustomText style={styles.debug}>
+              Voice profile embeddings (preview):
+            </CustomText>
+            {currentSession.voiceProfiles.map(profile => (
+              <CustomText style={styles.debug} key={profile.name}>
+                {profile.name}: [
+                {profile.embedding
+                  .slice(0, 10)
+                  .map(v => v.toFixed(3))
+                  .join(', ')}
+                {profile.embedding.length > 10 ? ' ...' : ''}]
+              </CustomText>
+            ))}
+          </View>
+        )}
+
+        {__DEV__ && mfccFrames.length > 0 && (
+          <View style={{ marginTop: 8 }}>
+            <CustomText style={styles.debug}>
+              Recent MFCC frame 0 (first 10 coeffs):
+            </CustomText>
+            <CustomText style={styles.debug}>
+              [
+              {mfccFrames[0]
+                .slice(0, 10)
+                .map(v => v.toFixed(2))
+                .join(', ')}
+              ]
+            </CustomText>
+            <CustomText style={styles.debug}>
+              Frame count: {mfccFrames.length}, coeffs/frame:{' '}
+              {mfccFrames[0].length}
+            </CustomText>
+          </View>
+        )}
+
+        {__DEV__ && (
+          <>
+            <CustomText style={styles.debug}>{debug}</CustomText>
+            <CustomText style={styles.debug}>
+              Effective sample rate: {effectiveSampleRate.toFixed(1)} Hz
+            </CustomText>
+            <CustomText style={styles.debug}>
+              Effective window length: {effectiveWindowLength} samples
+            </CustomText>
+            {lastInferenceTime ? (
+              <CustomText
+                style={styles.debug}
+              >{`Last inference: ${lastInferenceTime} (${
+                lastInferenceOk ? 'OK' : 'no output'
+              })`}</CustomText>
+            ) : null}
+            {debug.startsWith('Buffering audio') && (
+              <CustomText
+                style={[styles.debug, { color: colorScheme.warning }]}
+              >
+                Collecting enough audio for MFCC (normal while recording)...
+              </CustomText>
+            )}
+            <CustomText style={styles.debug}>
+              MFCC Timer Tick: {mfccTick} | Last: {mfccLastTime}
+            </CustomText>
+            <CustomText style={styles.debug}>
+              VAD: {vadStatus} {vadStatusTime ? `(@ ${vadStatusTime})` : ''}
+            </CustomText>
+            <CustomText style={styles.debug}>
+              RMS: {lastRms?.toFixed(5) ?? 'n/a'} | ZCR:{' '}
+              {lastZcr?.toFixed(5) ?? 'n/a'}
+            </CustomText>
+            <CustomText style={styles.debug}>
+              {`VAD thresholds: RMS >= ${vadRmsThreshold.toFixed(
+                6,
+              )} (slider ${vadRmsSlider}) | ZCR < ${vadZcrThreshold.toFixed(
+                6,
+              )} (slider ${vadZcrSlider})`}
+            </CustomText>
+            <CustomText style={styles.debug}>
+              {`Cosine threshold: ${
+                settings?.cosineMinConfidence?.toFixed(2) ??
+                COSINE_MIN_CONFIDENCE.toFixed(2)
+              }`}
+            </CustomText>
+            <CustomText style={styles.debug}>
+              {`RMS pass: ${
+                lastPassRms == null ? 'n/a' : lastPassRms ? 'YES' : 'NO'
+              } | ZCR pass: ${
+                lastPassZcr == null ? 'n/a' : lastPassZcr ? 'YES' : 'NO'
+              }`}
+            </CustomText>
+            <CustomText style={styles.debug}>
+              {`VAD smooth ticks: ${
+                settings?.vadSmoothTicks ?? 0
+              } | holdoff remaining: ${mfccTick}`}
+            </CustomText>
+            {lastInferenceTime ? (
+              <CustomText style={styles.debug}>
+                Last inference: {lastInferenceTime} (
+                {lastInferenceOk ? 'ok' : 'failed'})
+              </CustomText>
+            ) : null}
+            {lastInferenceError ? (
+              <CustomText style={[styles.debug, { color: colorScheme.error }]}>
+                Last inference error: {lastInferenceError}
+              </CustomText>
+            ) : null}
+          </>
+        )}
       </View>
 
       {error && <CustomText style={styles.error}>{error}</CustomText>}
@@ -1115,7 +1060,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'stretch',
     backgroundColor: colorScheme.background,
-    paddingBottom: 30,
   },
 
   header: {
@@ -1126,8 +1070,6 @@ const styles = StyleSheet.create({
   },
 
   audioDemoContainer: {
-    flex: 1,
-    minHeight: 0,
     borderWidth: 0,
     padding: 14,
     paddingBottom: 0,
@@ -1135,18 +1077,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     height: '100%',
   },
-  audioContent: {
-    flex: 1,
-    minHeight: 0,
-    justifyContent: 'space-between',
-  },
-  mainContent: {
-    flex: 1,
-    minHeight: 0,
-  },
-  bottomButtonSpacer: {},
   addVoiceProfileButton: {
     width: '100%',
+    marginTop: 16,
   },
   timelineTable: {
     width: '100%',
@@ -1216,13 +1149,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colorScheme.subText,
-  },
-
-  profileBarsWrapper: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 0,
-    marginBottom: 12,
   },
 
   meterBarBackground: {

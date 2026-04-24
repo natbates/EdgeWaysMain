@@ -33,7 +33,7 @@ export const settingsConfig: SettingConfig[] = [
       'Number of consecutive VAD frames required for a stable voice decision. Set to 0 to disable smoothing.',
     type: 'slider',
     min: 0,
-    max: 8,
+    max: 3,
     step: 1,
     format: v => String(Math.round(v)),
   },

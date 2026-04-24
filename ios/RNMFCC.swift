@@ -30,21 +30,15 @@ class RNMFCC: NSObject {
     let FRAME_STEP = 160
     let FFT_LENGTH = 1024
     let NUM_MFCC = 40
-    let MFCC_TIME_STEPS = 100
-    let SAMPLE_RATE = 16000
+    let MFCC_TIME_STEPS = 200
 
     @objc
     func extractMFCCFromWaveform(
         _ waveform: [NSNumber], resolver: @escaping RCTPromiseResolveBlock,
         rejecter: @escaping RCTPromiseRejectBlock
     ) {
-        // --- 1. Cast and pad/truncate to exactly SAMPLE_RATE samples ---
+        // --- 1. Cast waveform to float32 and preserve its length ---
         var signal = waveform.map { Float32(truncating: $0) }
-        if signal.count < SAMPLE_RATE {
-            signal += [Float32](repeating: 0, count: SAMPLE_RATE - signal.count)
-        } else if signal.count > SAMPLE_RATE {
-            signal = Array(signal[0..<SAMPLE_RATE])
-        }
 
         // --- 2. Pre-emphasis ---
         let preEmphasis: Float32 = 0.97

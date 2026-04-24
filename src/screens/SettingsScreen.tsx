@@ -18,10 +18,11 @@ import CustomSlider from '../components/ui/CustomSlider';
 import { settingsConfig } from '../config/settingsConfig';
 
 const HELP_TEXTS = [
-  'Tip: Tap the Sessions tab to start recording and train voice profiles.',
-  'Did you know? The model runs fully on your device—no data leaves your phone.',
-  'Pro tip: Create multiple voice profiles for better recognition accuracy.',
-  'Want to reset? Delete sessions from the Sessions tab and start fresh.',
+  'Adjust the sliders to change how the app records and analyzes audio. Each setting affects the behavior of the model and recording process.',
+  'Sample Rate: Controls the quality and size of audio recordings. Higher values mean better quality but use more storage and processing.',
+  'Window Duration: Sets how long each audio segment is for analysis. Shorter windows give more detailed speaker changes, longer windows are smoother.',
+  'Training Duration: Determines how much audio is used when creating a new voice profile. More time can improve accuracy.',
+  'Changes are saved automatically. You can experiment with these settings to find what works best for your environment.',
 ];
 
 type SettingsScreenProps = {
@@ -40,8 +41,6 @@ export default function SettingsScreen({
   const [settings, setSettings] = useState<Settings | null>(null);
 
   const openHelp = () => {
-    const idx = Math.floor(Math.random() * HELP_TEXTS.length);
-    setHelpText(HELP_TEXTS[idx]);
     setShowHelp(true);
   };
 
@@ -131,11 +130,11 @@ export default function SettingsScreen({
             <View style={styles.modalContent}>
               <ScrollView>
                 <Text style={styles.modalTitle}>Help</Text>
-                <Text style={styles.modalText}>{helpText}</Text>
-                <Text style={styles.modalText}>
-                  This screen will get additional settings soon — including
-                  voice calibration and model tweaks.
-                </Text>
+                {HELP_TEXTS.map((text, idx) => (
+                  <Text key={idx} style={styles.modalText}>
+                    {text}
+                  </Text>
+                ))}
               </ScrollView>
               <TouchableOpacity
                 style={styles.modalClose}

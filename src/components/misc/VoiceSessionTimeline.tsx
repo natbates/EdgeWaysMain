@@ -128,6 +128,15 @@ function VoiceSessionTimeline({
     [timelineLength, secondsInterval],
   );
 
+  const secondMarkers = React.useMemo(
+    () =>
+      Array.from({ length: Math.floor(timelineLength) + 1 }, (_, index) => ({
+        key: `second-line-${index}`,
+        left: (index / timelineLength) * trackWidth,
+      })),
+    [timelineLength, trackWidth],
+  );
+
   const timelineLabels = React.useMemo(
     () =>
       timeline.map((entry, idx) => ({
@@ -249,6 +258,12 @@ function VoiceSessionTimeline({
           </View>
 
           <View style={styles.timelineTrack}>
+            {secondMarkers.map(marker => (
+              <View
+                key={marker.key}
+                style={[styles.secondLine, { left: marker.left }]}
+              />
+            ))}
             {timelineBars.map(bar => (
               <View key={bar.key} style={[styles.timelineBar, bar.style]} />
             ))}
@@ -348,6 +363,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colorScheme.subText,
     marginRight: 8,
+  },
+  secondLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
   },
   summaryRow: {
     marginTop: 15,
