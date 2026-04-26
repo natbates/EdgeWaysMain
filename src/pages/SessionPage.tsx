@@ -10,8 +10,7 @@ import VoiceProfileSpeakingBars from '../components/misc/VoiceProfileSpeakingBar
 import VoiceSessionTimeline from '../components/misc/VoiceSessionTimeline';
 import { colorScheme } from '../constants/colorScheme';
 import { profileColors } from '../constants/profileColors';
-import { runModelOnMFCC, runModelOnWaveform } from '../utils/mlModelUtils';
-import { runMFCCOnWaveform } from '../utils/mfccUtils';
+import { runModelOnWaveform } from '../utils/mlModelUtils';
 // extractMFCC and Meyda were removed in waveform-first migration
 import { scoreVoiceProfiles } from '../utils/voiceProfiles';
 import { computeProfileSpeakingPercentages } from '../utils/sessionUtils';
@@ -597,30 +596,9 @@ export default function SessionPage({
         setDebug(`VAD: speaking (rms=${rms.toFixed(5)} zcr=${zcr.toFixed(4)})`);
       }
 
-      // Run model on raw waveform (no Meyda/MFCC in JS)
-      // Extract MFCCs and run model
+      // Run model on current waveform window.
       setDebug(`[DEBUG] Waveform shape: ${out.length}`);
-      const mfccResult = await runMFCCOnWaveform(out);
-      if (!mfccResult) {
-        setDebug('MFCC extraction failed: result is null');
-        setMfccFrames([]);
-        setProfilePrediction(null);
-        setProfileScores([]);
-        setOutput(null);
-        setLastInferenceOk(false);
-        setLastInferenceError('MFCC extraction failed');
-        return;
-      }
-      setDebug(
-        `[DEBUG] MFCC shape: ${
-          Array.isArray(mfccResult.mfcc) ? mfccResult.mfcc.length : 'null'
-        } x ${
-          Array.isArray(mfccResult.mfcc) && Array.isArray(mfccResult.mfcc[0])
-            ? mfccResult.mfcc[0].length
-            : 'null'
-        }`,
-      );
-      setMfccFrames(mfccResult.mfcc);
+      setMfccFrames([]);
       const inferenceTime = new Date().toLocaleTimeString();
       setLastInferenceTime(inferenceTime);
       try {

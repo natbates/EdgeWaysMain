@@ -30,7 +30,7 @@ class RNMFCC: NSObject {
     let FRAME_STEP = 160
     let FFT_LENGTH = 1024
     let NUM_MFCC = 40
-    let MFCC_TIME_STEPS = 200
+    let MFCC_TIME_STEPS = 200 // 2.0s window at 16kHz, 200 time steps
 
     @objc
     func extractMFCCFromWaveform(

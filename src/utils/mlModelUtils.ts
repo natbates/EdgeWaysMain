@@ -4,12 +4,45 @@ import {
   NUM_MFCC,
   EMBEDDING_DIM,
   WINDOW_LENGTH_SAMPLES,
+  WAVEFORM_MODEL_REQUIRED_SAMPLES,
 } from '../constants/mlModel';
 import { runMFCCOnWaveform } from './mfccUtils';
 
 const { RNTensorflowLite } = NativeModules;
 
 const loadedModels = new Set<string>();
+let cachedModelInputCount: number | null = null;
+
+async function getModelInputCount(): Promise<number | null> {
+  if (cachedModelInputCount !== null) {
+    return cachedModelInputCount;
+  }
+
+  try {
+    const shapeRaw = await RNTensorflowLite.getInputTensorShape?.();
+    if (Array.isArray(shapeRaw) && shapeRaw.length > 0) {
+      const dims = shapeRaw.map((d: any) => Number(d));
+      const count = dims.reduce((acc: number, d: number) => acc * d, 1);
+      if (Number.isFinite(count) && count > 0) {
+        cachedModelInputCount = count;
+        console.log(
+          '[TFLITE] detected model input shape:',
+          dims,
+          'count=',
+          count,
+        );
+        return count;
+      }
+    }
+  } catch (err) {
+    console.warn(
+      '[TFLITE] getInputTensorShape failed, using fallback logic',
+      err,
+    );
+  }
+
+  return null;
+}
 
 function toNumberArray(output: any): number[] | null {
   if (Array.isArray(output)) {
@@ -72,6 +105,7 @@ export async function loadTFLiteModel(
       result,
     );
     loadedModels.add(modelName);
+    cachedModelInputCount = null;
   } catch (err) {
     console.error(`[TFLITE] Model load failed for '${modelName}':`, err);
     throw err;
@@ -87,37 +121,59 @@ export async function runModelOnWaveform(
   waveform: number[] | Float32Array,
 ): Promise<number[] | null> {
   await loadTFLiteModel();
+  const modelInputCount = await getModelInputCount();
 
   if (!Array.isArray(waveform) && !(waveform instanceof Float32Array)) {
     throw new Error('[TFLITE] waveform must be an array or Float32Array');
   }
 
-  // Preferred path: convert waveform to MFCC, then run model with the required MFCC input shape.
-  try {
-    const mfccResult = await runMFCCOnWaveform(waveform);
-    if (mfccResult && mfccResult.mfcc) {
-      console.log(
-        '[TFLITE] Using MFCC-based inference path (1,',
-        mfccResult.mfcc.length,
-        ', 40, 1)',
-      );
-      const emb = await runModelOnMFCC(mfccResult.mfcc);
-      if (emb) {
-        return emb;
+  const mfccInputCount = NUM_FRAMES * NUM_MFCC;
+
+  // Only use MFCC route if the loaded model input count matches MFCC flatten size.
+  if (modelInputCount === mfccInputCount) {
+    try {
+      const mfccResult = await runMFCCOnWaveform(waveform);
+      if (mfccResult && mfccResult.mfcc) {
+        console.log(
+          '[TFLITE] Using MFCC-based inference path (1,',
+          mfccResult.mfcc.length,
+          ', 40, 1)',
+        );
+        const emb = await runModelOnMFCC(mfccResult.mfcc);
+        if (emb) {
+          return emb;
+        }
+        console.warn(
+          '[TFLITE] runModelOnMFCC returned null after extracting MFCC',
+        );
       }
+    } catch (mfccErr) {
       console.warn(
-        '[TFLITE] runModelOnMFCC returned null after extracting MFCC',
+        '[TFLITE] MFCC extraction path failed, falling back to waveform candidate lengths:',
+        mfccErr,
       );
     }
-  } catch (mfccErr) {
-    console.warn(
-      '[TFLITE] MFCC extraction path failed, falling back to waveform candidate lengths:',
-      mfccErr,
+  } else if (modelInputCount !== null) {
+    console.log(
+      '[TFLITE] Model expects waveform-sized input count:',
+      modelInputCount,
+      '(skipping MFCC path)',
     );
   }
 
   // Legacy waveform path fallback (for older model variants or experimental support).
-  const candidateLengths = Array.from(new Set([WINDOW_LENGTH_SAMPLES, 64000])); // Remove duplicate candidate, keep main 16k path and 64k fallback
+  // Keep 1.5s app windows (24000 at 16kHz) for app logic, but prioritize
+  // model-required input length for inference to avoid per-tick mismatch errors.
+  const candidateLengths = Array.from(
+    new Set([
+      ...(modelInputCount && modelInputCount !== mfccInputCount
+        ? [modelInputCount]
+        : []),
+      WAVEFORM_MODEL_REQUIRED_SAMPLES,
+      WINDOW_LENGTH_SAMPLES,
+      64000,
+    ]),
+  );
 
   const prepareFixed = (targetLength: number): Float32Array => {
     const fixed = new Float32Array(targetLength);
@@ -219,6 +275,18 @@ export async function runModelOnMFCC(
   mfccFrames: number[][],
 ): Promise<number[] | null> {
   await loadTFLiteModel();
+  const modelInputCount = await getModelInputCount();
+  const mfccInputCount = NUM_FRAMES * NUM_MFCC;
+
+  if (modelInputCount !== null && modelInputCount !== mfccInputCount) {
+    console.warn(
+      '[TFLITE] Skipping MFCC inference: model expects input count',
+      modelInputCount,
+      'but MFCC count is',
+      mfccInputCount,
+    );
+    return null;
+  }
   // Check input shape
   if (!Array.isArray(mfccFrames) || mfccFrames.length !== NUM_FRAMES) {
     console.error(

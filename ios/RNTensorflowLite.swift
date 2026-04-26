@@ -42,9 +42,6 @@ class RNTensorflowLite: NSObject {
             let inputTensorBeforeInvoke = try interpreter.input(at: 0)
             let expectedInputCount = inputTensorBeforeInvoke.shape.dimensions.reduce(1, *)
             let actualInputCount = floatArray.count
-            print(
-                "[TFLITE] Input tensor info: shape=\(inputTensorBeforeInvoke.shape), type=\(inputTensorBeforeInvoke.dataType), expectedCount=\(expectedInputCount), actualCount=\(actualInputCount)"
-            )
 
             if expectedInputCount != actualInputCount {
                 print(
@@ -86,6 +83,24 @@ class RNTensorflowLite: NSObject {
         } catch {
             print("[TFLITE] Inference error: \(error)")
             rejecter("INFER_ERROR", "Failed to run inference", error)
+        }
+    }
+
+    @objc
+    func getInputTensorShape(
+        _ resolver: @escaping RCTPromiseResolveBlock,
+        rejecter: @escaping RCTPromiseRejectBlock
+    ) {
+        guard let interpreter = interpreter else {
+            rejecter("NO_MODEL", "Model not loaded", nil)
+            return
+        }
+
+        do {
+            let inputTensor = try interpreter.input(at: 0)
+            resolver(inputTensor.shape.dimensions)
+        } catch {
+            rejecter("INPUT_SHAPE_ERROR", "Failed to read input tensor shape", error)
         }
     }
 }

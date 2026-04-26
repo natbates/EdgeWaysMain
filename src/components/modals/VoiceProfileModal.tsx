@@ -19,8 +19,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { CustomButton, CustomInput, CustomText } from '@components';
 import { colorScheme } from '@constants/colorScheme';
 import { profileColors } from '@constants/profileColors';
-import { runModelOnMFCC } from '@utils/mlModelUtils';
-import { runMFCCOnWaveform } from '@utils/mfccUtils';
+import { runModelOnWaveform } from '@utils/mlModelUtils';
 import { isSpeech } from '@utils/vad';
 // import { extractMFCC } from '@utils/mfccUtils'; (removed Meyda dependency)
 import { decodePcm16Base64ToFloat32 } from '@utils/audioUtils';
@@ -197,9 +196,7 @@ export default function VoiceProfileModal({
         if (!isSpeech(segment)) {
           continue;
         }
-        const mfccResult = await runMFCCOnWaveform(segment);
-        if (!mfccResult) continue;
-        const emb = await runModelOnMFCC(mfccResult.mfcc);
+        const emb = await runModelOnWaveform(segment);
         if (emb) {
           const norm = Math.sqrt(emb.reduce((sum, v) => sum + v * v, 0));
           if (norm > 0) {

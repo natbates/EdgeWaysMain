@@ -6,6 +6,8 @@ RCT_EXTERN_METHOD(loadModel : (NSString *)modelName resolver : (
 RCT_EXTERN_METHOD(runModelOnTensor : (NSArray<NSNumber *> *)input inputShape : (
     NSArray<NSNumber *> *)inputShape resolver : (RCTPromiseResolveBlock)
                       resolve rejecter : (RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getInputTensorShape : (RCTPromiseResolveBlock)
+                      resolve rejecter : (RCTPromiseRejectBlock)reject)
 @end
 
 @interface RCT_EXTERN_MODULE (RNMFCC, NSObject)
